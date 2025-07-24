@@ -7,6 +7,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import Index from "./pages/Index";
 import AccessControl from "./pages/AccessControl";
 import Reconciliation from "./pages/Reconciliation";
+import ReconciledTransactions from "./pages/ReconciledTransactions";
+import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,12 @@ const App = () => (
               <Reconciliation />
             </DashboardLayout>
           } />
+          <Route path="/reconciled-transactions" element={
+            <DashboardLayout>
+              <ReconciledTransactions />
+            </DashboardLayout>
+          } />
+          <Route path="/sign-in" element={<SignIn />} />
           <Route path="/settings" element={
             <DashboardLayout>
               <div className="p-6">

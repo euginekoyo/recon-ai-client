@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import Index from "./pages/Index";
 import AccessControl from "./pages/AccessControl";
+import Reconciliation from "./pages/Reconciliation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,10 +34,7 @@ const App = () => (
           } />
           <Route path="/reconciliation" element={
             <DashboardLayout>
-              <div className="p-6">
-                <h1 className="text-3xl font-bold">Reconciliation</h1>
-                <p className="text-muted-foreground mt-2">Reconciliation tools coming soon...</p>
-              </div>
+              <Reconciliation />
             </DashboardLayout>
           } />
           <Route path="/settings" element={

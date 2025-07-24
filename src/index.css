@@ -2,39 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Financial Dashboard Design System - Professional navy blue theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 220 20% 97%;
+    --foreground: 220 15% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 220 70% 35%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 220 70% 40%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 15% 95%;
+    --secondary-foreground: 220 15% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 220 50% 88%;
+    --accent-foreground: 220 70% 25%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 45 95% 55%;
+    --warning-foreground: 45 30% 15%;
+
+    --border: 220 20% 90%;
+    --input: 220 20% 92%;
+    --ring: 220 70% 35%;
+
+    /* Dashboard specific colors */
+    --sidebar: 220 25% 98%;
+    --sidebar-foreground: 220 15% 25%;
+    --sidebar-hover: 220 50% 92%;
+    --sidebar-active: 220 70% 35%;
+    --sidebar-active-foreground: 0 0% 98%;
+
+    --topbar: 0 0% 100%;
+    --topbar-foreground: 220 15% 15%;
+    --topbar-border: 220 20% 90%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(220 70% 35%), hsl(220 70% 45%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 98%), hsl(220 20% 96%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 20% 20% / 0.05);
+    --shadow: 0 4px 6px -1px hsl(220 20% 20% / 0.1), 0 2px 4px -2px hsl(220 20% 20% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(220 20% 20% / 0.1), 0 4px 6px -4px hsl(220 20% 20% / 0.1);
+
+    /* Transitions */
+    --transition-all: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s ease-out;
 
     --radius: 0.5rem;
 
@@ -56,33 +85,60 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 220 25% 8%;
+    --foreground: 220 15% 90%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 25% 10%;
+    --card-foreground: 220 15% 90%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 25% 10%;
+    --popover-foreground: 220 15% 90%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 220 70% 55%;
+    --primary-foreground: 220 25% 8%;
+    --primary-hover: 220 70% 60%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 25% 15%;
+    --secondary-foreground: 220 15% 75%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 25% 12%;
+    --muted-foreground: 220 10% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 220 30% 18%;
+    --accent-foreground: 220 15% 80%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 45 85% 55%;
+    --warning-foreground: 45 30% 15%;
+
+    --border: 220 25% 18%;
+    --input: 220 25% 16%;
+    --ring: 220 70% 55%;
+
+    /* Dashboard specific colors - dark mode */
+    --sidebar: 220 25% 10%;
+    --sidebar-foreground: 220 15% 75%;
+    --sidebar-hover: 220 30% 15%;
+    --sidebar-active: 220 70% 55%;
+    --sidebar-active-foreground: 220 25% 8%;
+
+    --topbar: 220 25% 10%;
+    --topbar-foreground: 220 15% 90%;
+    --topbar-border: 220 25% 18%;
+
+    /* Dark mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(220 70% 45%), hsl(220 70% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 10%), hsl(220 25% 8%));
+
+    /* Dark mode shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 25% 5% / 0.5);
+    --shadow: 0 4px 6px -1px hsl(220 25% 5% / 0.3), 0 2px 4px -2px hsl(220 25% 5% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(220 25% 5% / 0.3), 0 4px 6px -4px hsl(220 25% 5% / 0.3);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

@@ -189,3 +189,19 @@ function useToast() {
 }
 
 export { useToast, toast }
+
+const handleDeleteUser = async (userId: string) => {
+  try {
+    const response = await api.deleteUser(userId)
+    if (response.ok) {
+      toast({ title: "User deleted", description: "User was deleted successfully", /* type: "success" */ })
+      // Optionally: toast.dismiss() before showing new toast
+      // Refresh user list, etc.
+    } else {
+      // Only show error if not ok
+      toast({ title: "Error", description: "Failed to delete user", /* type: "error" */ })
+    }
+  } catch (err) {
+    toast({ title: "Error", description: "Failed to delete user", /* type: "error" */ })
+  }
+}

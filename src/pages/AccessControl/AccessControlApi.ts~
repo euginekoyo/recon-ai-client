@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery, FetchArgs } from '@reduxjs/toolkit/query/react';
-import {config} from "@/config.ts"
+import config
 interface UserData {
     id: string;
     username: string;
@@ -57,7 +57,7 @@ interface UpdateProfileRequest {
 export const accessControlApi = createApi({
     reducerPath: 'accessControlApi',
     baseQuery: fetchBaseQuery({
-        baseUrl: config.apiBackendBaseUrl,
+        baseUrl: config,
         prepareHeaders: (headers) => {
             const token = localStorage.getItem('token');
             if (token) {

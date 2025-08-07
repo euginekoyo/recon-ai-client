@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {config} from "@/config.ts";
 
 interface TemplateField {
     id?: string; // Optional, as it may not always be returned
@@ -19,7 +20,7 @@ export interface Template {
 export const templateApi = createApi({
     reducerPath: 'templateApi',
     baseQuery: fetchBaseQuery({
-        baseUrl: 'http://localhost:5000/api', // Ensure this matches your backend URL
+        baseUrl: config.apiBackendBaseUrl, // Ensure this matches your backend URL
         prepareHeaders: (headers) => {
             const token = localStorage.getItem('token');
             if (token) {

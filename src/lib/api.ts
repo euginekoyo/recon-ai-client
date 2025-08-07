@@ -1,7 +1,8 @@
 import axios from 'axios';
+import {config} from "@/config.ts";
 
 const apiClient = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: config.apiBackendBaseUrl,
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

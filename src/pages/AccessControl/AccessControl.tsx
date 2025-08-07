@@ -32,6 +32,7 @@ import {
     Permission
 } from './AccessControlApi';
 import { isAuthenticated, isAdmin, hasPermission } from '@/lib/auth';
+import {config} from "@/config.ts";
 
 const navigationItems = [
     { name: 'Dashboard', permission: 'VIEW_DASHBOARD', description: 'View dashboard metrics.', category: 'Navigation' },
@@ -286,7 +287,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onOpenChange })
     };
 
     const generatePassword = () => {
-        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        const charset = config.charset;
         let password = "";
         for (let i = 0; i < 12; i++) password += charset.charAt(Math.floor(Math.random() * charset.length));
         return password;

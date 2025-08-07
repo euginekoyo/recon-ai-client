@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {config} from "@/config.ts";
 
 interface ReconBatch {
     id: number;
@@ -39,7 +40,7 @@ interface BatchResponse {
 export const reconciliationApi = createApi({
     reducerPath: 'reconciliationApi',
     baseQuery: fetchBaseQuery({
-        baseUrl: 'http://localhost:5000/api',
+        baseUrl: config.apiBackendBaseUrl,
         prepareHeaders: (headers) => {
             const token = localStorage.getItem('token');
             if (token) {

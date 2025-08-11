@@ -40,20 +40,20 @@ export const templateApi = createApi({
     tagTypes: ['Templates', 'Template'],
     endpoints: (builder) => ({
         getTemplates: builder.query<Template[], void>({
-            query: () => '/templates',
+            query: () => '/api/templates',
             providesTags: ['Templates'],
         }),
         getTemplatesByType: builder.query<Template[], string>({
-            query: (type) => `/templates/${type.toUpperCase()}`,
+            query: (type) => `/api/templates/${type.toUpperCase()}`,
             providesTags: ['Templates'],
         }),
         getTemplate: builder.query<Template, string>({
-            query: (id) => `/templates/id/${id}`,
+            query: (id) => `/api/templates/id/${id}`,
             providesTags: ['Template'],
         }),
         createTemplate: builder.mutation<Template, Omit<Template, 'id' | 'createdAt' | 'updatedAt'>>({
             query: (template) => ({
-                url: '/templates',
+                url: '/api/templates',
                 method: 'POST',
                 body: template,
             }),
@@ -61,7 +61,7 @@ export const templateApi = createApi({
         }),
         updateTemplate: builder.mutation<Template, Partial<Template> & { id: string }>({
             query: ({ id, ...template }) => ({
-                url: `/templates/${id}`,
+                url: `/api/templates/${id}`,
                 method: 'PUT',
                 body: template,
             }),
@@ -69,7 +69,7 @@ export const templateApi = createApi({
         }),
         deleteTemplate: builder.mutation<void, string>({
             query: (id) => ({
-                url: `/templates/${id}`,
+                url: `/api/templates/${id}`,
                 method: 'DELETE',
             }),
             invalidatesTags: ['Templates'],

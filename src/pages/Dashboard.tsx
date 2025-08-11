@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 
-import { useGetBatchesQuery, useGetRecordsQuery } from '@/pages/Reconciliation/reconciliationApi';
+import { useGetBatchesQuery, useGetRecordsQuery } from '@/store/redux/reconciliationApi.ts';
 
 const Dashboard = () => {
   const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();

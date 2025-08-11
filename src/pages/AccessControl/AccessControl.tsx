@@ -30,7 +30,7 @@ import {
     UserData,
     Role,
     Permission
-} from './AccessControlApi';
+} from '../../store/redux/AccessControlApi.ts';
 import { isAuthenticated, isAdmin, hasPermission } from '@/lib/auth';
 import {config} from "@/config.ts";
 

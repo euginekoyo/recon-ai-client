@@ -1,8 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { baseApi } from '@/lib/baseApi.ts';
-import { accessControlApi } from '@/pages/AccessControl/AccessControlApi.ts';
-import {reconciliationApi} from "@/pages/Reconciliation/reconciliationApi.ts";
-import {templateApi} from "@/pages/TemplateCreator/templateApi.ts";
+import { accessControlApi } from '@/store/redux/AccessControlApi.ts';
+import {reconciliationApi} from "@/store/redux/reconciliationApi.ts";
+import {templateApi} from "@/store/redux/templateApi.ts";
 
 export const store = configureStore({
     reducer: {

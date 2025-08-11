@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { useGetTemplatesQuery, Template } from '../TemplateCreator/templateApi';
-import { useUploadReconciliationFilesMutation } from './reconciliationApi';
+import { useGetTemplatesQuery, Template } from '../../store/redux/templateApi.ts';
+import { useUploadReconciliationFilesMutation } from '../../store/redux/reconciliationApi.ts';
 import { useNavigate } from 'react-router-dom';
 
 interface BackofficeData {
@@ -61,7 +61,7 @@ interface BatchDetails {
 
 const ReconciliationUpload: React.FC = () => {
   const navigate = useNavigate();
-  const { data: templates = [], isLoading: isLoadingTemplates } = useGetTemplatesQuery();
+  const { data: templates = [], isLoading: isLoadingTemplates, error } = useGetTemplatesQuery();
   const [uploadReconciliationFiles, { isLoading: isUploading }] = useUploadReconciliationFilesMutation();
   const [bankFile, setBankFile] = useState<UploadedFile | null>(null);
   const [vendorFile, setVendorFile] = useState<UploadedFile | null>(null);
@@ -466,30 +466,39 @@ const ReconciliationUpload: React.FC = () => {
                     <SelectValue placeholder={isLoadingTemplates ? 'Loading templates...' : `Select ${type} template`} />
                   </SelectTrigger>
                   <SelectContent className="bg-white rounded-lg shadow-xl">
-                    {templates
-                        .filter((t: Template) => t.type === (type === 'bank' ? 'BACKOFFICE' : 'VENDOR'))
-                        .map((template: Template) => (
-                            <SelectItem key={template.id} value={template.id} className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                              {template.name}
-                            </SelectItem>
-                        ))}
+                    {isLoadingTemplates ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500">Loading templates...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-rose-600">Failed to load templates</p>
+                        </div>
+                    ) : Array.isArray(templates) && templates.length > 0 ? (
+                        templates
+                            .filter((t: Template) => t.type === (type === 'bank' ? 'BACKOFFICE' : 'VENDOR'))
+                            .map((template: Template) => (
+                                <SelectItem key={template.id} value={template.id} className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                  {template.name}
+                                </SelectItem>
+                            ))
+                    ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500 mb-3">No templates available</p>
+                          <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-dashed border-indigo-300 hover:bg-indigo-50"
+                              onClick={() => navigate('/template')}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Template
+                          </Button>
+                        </div>
+                    )}
                   </SelectContent>
                 </Select>
-                {templates.filter((t: Template) => t.type === (type === 'bank' ? 'BACKOFFICE' : 'VENDOR')).length === 0 && (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-gray-500 mb-3">No templates available</p>
-                      <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-dashed border-indigo-300 hover:bg-indigo-50"
-                          onClick={() => navigate('/template')}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Template
-                      </Button>
-                    </div>
-                )}
               </div>
 
               {!file ? (

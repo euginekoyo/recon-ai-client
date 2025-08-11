@@ -1,4 +1,4 @@
-import { baseApi } from '@/lib/baseApi';
+import { baseApi } from '@/lib/baseApi.ts';
 import type { FetchArgs } from '@reduxjs/toolkit/query';
 
 export const authApi = baseApi.injectEndpoints({
@@ -11,7 +11,7 @@ export const authApi = baseApi.injectEndpoints({
                 const body = { username: credentials.username, password: credentials.password };
                 console.log('Login Query Payload:', body); // Debug payload
                 return {
-                    url: '/auth/login',
+                    url: '/api/auth/login',
                     method: 'POST',
                     body, // Let Axios handle JSON.stringify
                     headers: {
@@ -25,7 +25,7 @@ export const authApi = baseApi.injectEndpoints({
             { username: string; email: string; password: string; firstName: string; lastName: string }
         >({
             query: (newUser): FetchArgs => ({
-                url: '/auth/register',
+                url: '/api/auth/register',
                 method: 'POST',
                 body: newUser,
                 headers: {
@@ -34,7 +34,7 @@ export const authApi = baseApi.injectEndpoints({
             }),
         }),
         getProfile: builder.query<any, void>({
-            query: (): string => '/auth/profile',
+            query: (): string => '/api/auth/profile',
             providesTags: ['Auth'],
         }),
     }),

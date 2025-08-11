@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery, FetchArgs } from '@reduxjs/toolkit/query/react';
-import config
+import {config} from "@/config.ts"
 interface UserData {
     id: string;
     username: string;
@@ -57,7 +57,7 @@ interface UpdateProfileRequest {
 export const accessControlApi = createApi({
     reducerPath: 'accessControlApi',
     baseQuery: fetchBaseQuery({
-        baseUrl: config,
+        baseUrl: config.apiBackendBaseUrl,
         prepareHeaders: (headers) => {
             const token = localStorage.getItem('token');
             if (token) {
@@ -81,7 +81,7 @@ export const accessControlApi = createApi({
         getUsers: builder.query<UserData[], void>({
             query: (): string => {
                 console.log('Fetching all users');
-                return '/admin/users';
+                return '/api/admin/users';
             },
             providesTags: ['Users'],
         }),
@@ -89,7 +89,7 @@ export const accessControlApi = createApi({
             query: ({ userId, roleNames }): FetchArgs => {
                 console.log('Assign Roles Payload:', { userId, roleNames });
                 return {
-                    url: `/admin/users/${userId}/roles`,
+                    url: `/api/admin/users/${userId}/roles`,
                     method: 'POST',
                     body: roleNames,
                     headers: {
@@ -101,7 +101,7 @@ export const accessControlApi = createApi({
         }),
         updateUser: builder.mutation<{ message: string }, { userId: string; userData: Partial<UserData> }>({
             query: ({ userId, userData }): FetchArgs => ({
-                url: `/admin/users/${userId}`,
+                url: `/api/admin/users/${userId}`,
                 method: 'PUT',
                 body: userData,
                 headers: {
@@ -121,7 +121,7 @@ export const accessControlApi = createApi({
         }),
         deleteUser: builder.mutation<{ message: string }, string>({
             query: (userId): FetchArgs => ({
-                url: `/admin/users/${userId}`,
+                url: `/api/admin/users/${userId}`,
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
@@ -140,7 +140,7 @@ export const accessControlApi = createApi({
         }),
         inviteUser: builder.mutation<{ message: string }, InviteUserRequest>({
             query: (user): FetchArgs => ({
-                url: '/auth/register',
+                url: '/api/auth/register',
                 method: 'POST',
                 body: user,
                 headers: {
@@ -160,7 +160,7 @@ export const accessControlApi = createApi({
         }),
         createRole: builder.mutation<{ message: string; role: string }, { role: string }>({
             query: (roleData): FetchArgs => ({
-                url: '/admin/roles',
+                url: '/api/admin/roles',
                 method: 'POST',
                 body: { role: roleData.role, permissions: [] },
                 headers: {
@@ -182,7 +182,7 @@ export const accessControlApi = createApi({
             query: ({ roleId, roleData }): FetchArgs => {
                 console.log('Update Role Payload:', { roleId, roleData });
                 return {
-                    url: `/admin/roles/${roleId}`,
+                    url: `/api/admin/roles/${roleId}`,
                     method: 'PUT',
                     body: roleData,
                     headers: {
@@ -196,7 +196,7 @@ export const accessControlApi = createApi({
             query: (roleId): FetchArgs => {
                 console.log('Delete Role ID:', roleId);
                 return {
-                    url: `/admin/roles/${roleId}`,
+                    url: `/api/admin/roles/${roleId}`,
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
@@ -208,7 +208,7 @@ export const accessControlApi = createApi({
         getRoles: builder.query<Role[], void>({
             query: (): string => {
                 console.log('Fetching all roles');
-                return '/admin/roles';
+                return '/api/admin/roles';
             },
             providesTags: ['Roles'],
         }),
@@ -216,7 +216,7 @@ export const accessControlApi = createApi({
             query: (permission): FetchArgs => {
                 console.log('Create Permission Payload:', permission);
                 return {
-                    url: '/admin/permissions',
+                    url: '/api/admin/permissions',
                     method: 'POST',
                     body: permission,
                     headers: {
@@ -229,7 +229,7 @@ export const accessControlApi = createApi({
         getPermissions: builder.query<Permission[], void>({
             query: (): string => {
                 console.log('Fetching all permissions');
-                return '/admin/permissions';
+                return '/api/admin/permissions';
             },
             providesTags: ['Permissions'],
         }),
@@ -237,7 +237,7 @@ export const accessControlApi = createApi({
             query: ({ roleId, permission }): FetchArgs => {
                 console.log('Assign Permission Payload:', { roleId, permission });
                 return {
-                    url: `/admin/roles/${roleId}/permissions`,
+                    url: `/api/admin/roles/${roleId}/permissions`,
                     method: 'POST',
                     body: permission,
                     headers: {
@@ -249,7 +249,7 @@ export const accessControlApi = createApi({
         }),
         verifyEmail: builder.mutation<{ message: string }, string>({
             query: (token): FetchArgs => ({
-                url: `/auth/verify?token=${token}`,
+                url: `/api/auth/verify?token=${token}`,
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -266,7 +266,7 @@ export const accessControlApi = createApi({
         }),
         activateUser: builder.mutation<{ message: string }, string>({
             query: (token): FetchArgs => ({
-                url: `/auth/activate?token=${token}`,
+                url: `/api/auth/activate?token=${token}`,
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -283,7 +283,7 @@ export const accessControlApi = createApi({
         }),
         resendVerification: builder.mutation<{ message: string }, ResendVerificationRequest>({
             query: (request): FetchArgs => ({
-                url: '/auth/resend-verification',
+                url: '/api/auth/resend-verification',
                 method: 'POST',
                 body: request,
                 headers: {
@@ -302,7 +302,7 @@ export const accessControlApi = createApi({
         }),
         resetPassword: builder.mutation<{ message: string }, ResetPasswordRequest>({
             query: (request): FetchArgs => ({
-                url: '/auth/reset-password',
+                url: '/api/auth/reset-password',
                 method: 'POST',
                 body: request,
                 headers: {
@@ -321,7 +321,7 @@ export const accessControlApi = createApi({
         }),
         changePassword: builder.mutation<{ message: string }, ChangePasswordRequest>({
             query: (request): FetchArgs => ({
-                url: '/auth/change-password',
+                url: '/api/auth/change-password',
                 method: 'POST',
                 body: request,
                 headers: {

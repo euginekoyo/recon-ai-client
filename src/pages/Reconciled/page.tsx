@@ -25,7 +25,7 @@ import {
     useGetBatchesQuery,
     useGetBatchQuery,
     useGetRecordsQuery,
-} from '@/pages/Reconciliation/reconciliationApi';
+} from '@/store/redux/reconciliationApi.ts';
 
 interface BatchRecord {
     id: string;

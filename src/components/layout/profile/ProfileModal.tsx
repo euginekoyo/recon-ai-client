@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useGetUsersQuery, useUpdateUserMutation } from '@/pages/AccessControl/AccessControlApi';
+import { useGetUsersQuery, useUpdateUserMutation } from '@/store/redux/AccessControlApi.ts';
 import { useAuth } from '@/lib/auth';
 
 interface UserData {

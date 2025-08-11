@@ -36,7 +36,7 @@ import {
     useGetRecordsQuery,
     useRetryBatchMutation,
     useResolveRecordMutation,
-} from '@/pages/Reconciliation/reconciliationApi';
+} from '@/store/redux/reconciliationApi.ts';
 import {useNavigate, useParams} from 'react-router-dom';
 import {debounce} from 'lodash';
 

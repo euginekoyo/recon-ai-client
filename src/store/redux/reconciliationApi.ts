@@ -70,7 +70,7 @@ export const reconciliationApi = createApi({
                 formData.append('backofficeTemplateId', backofficeTemplateId);
                 formData.append('vendorTemplateId', vendorTemplateId);
                 return {
-                    url: '/recon/upload',
+                    url: '/api/recon/upload',
                     method: 'POST',
                     body: formData,
                 };
@@ -78,11 +78,11 @@ export const reconciliationApi = createApi({
             invalidatesTags: ['Batches'],
         }),
         getBatches: builder.query<ReconBatch[], void>({
-            query: () => '/recon/batches',
+            query: () => '/api/recon/batches',
             providesTags: ['Batches'],
         }),
         getBatch: builder.query<ReconBatch, number>({
-            query: (id) => `/recon/batches/${id}`,
+            query: (id) => `/api/recon/batches/${id}`,
             providesTags: ['Batch'],
         }),
         getRecords: builder.query<
@@ -93,20 +93,20 @@ export const reconciliationApi = createApi({
                 const params = new URLSearchParams();
                 if (status) params.append('status', status);
                 if (resolved !== undefined) params.append('resolved', resolved.toString());
-                return `/recon/batches/${id}/records?${params.toString()}`;
+                return `/api/recon/batches/${id}/records?${params.toString()}`;
             },
             providesTags: ['Records'],
         }),
         retryBatch: builder.mutation<void, number>({
             query: (id) => ({
-                url: `/recon/batches/${id}/retry`,
+                url: `/api/recon/batches/${id}/retry`,
                 method: 'POST',
             }),
             invalidatesTags: ['Batch', 'Records'],
         }),
         resolveRecord: builder.mutation<void, number>({
             query: (id) => ({
-                url: `/recon/records/${id}/resolve`,
+                url: `/api/recon/records/${id}/resolve`,
                 method: 'POST',
             }),
             invalidatesTags: ['Records'],

@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useChangePasswordMutation } from '@/pages/AccessControl/AccessControlApi';
+import { useChangePasswordMutation } from '@/store/redux/AccessControlApi.ts';
 import { useAuth } from '@/lib/auth';
 
 interface ChangePasswordModalProps {

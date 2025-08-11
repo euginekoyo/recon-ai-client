@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useVerifyEmailMutation } from '@/pages/AccessControl/AccessControlApi';
+import { useVerifyEmailMutation } from '@/store/redux/AccessControlApi.ts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';

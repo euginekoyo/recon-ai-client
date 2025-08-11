@@ -8,7 +8,7 @@ import { Eye, EyeOff, Lock, User, Sparkles, Shield, ArrowRight } from 'lucide-re
 import { useToast } from '@/hooks/use-toast.ts';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils.ts';
-import { useLoginMutation } from '@/pages/Auth/AuthApi.ts';
+import { useLoginMutation } from '@/store/redux/AuthApi.ts';
 
 const SignIn = () => {
   const [username, setUsername] = useState('');

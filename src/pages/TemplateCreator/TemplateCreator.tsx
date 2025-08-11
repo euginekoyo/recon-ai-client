@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileSpreadsheet, FileText, Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
 import Papa from 'papaparse';
 import { useDropzone } from 'react-dropzone';
-import { useCreateTemplateMutation, useGetTemplateQuery, useUpdateTemplateMutation } from './templateApi';
+import { useCreateTemplateMutation, useGetTemplateQuery, useUpdateTemplateMutation } from '../../store/redux/templateApi.ts';
 
 interface TemplateField {
     fileHeader: string; // Matches TemplateField.java

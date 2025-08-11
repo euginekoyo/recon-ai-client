@@ -64,7 +64,7 @@ const SignIn = () => {
                 </div>
               </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-2">
-                FinanceSync
+                AuditFusion
               </h1>
               <p className="text-slate-600 dark:text-slate-400 text-lg">
                 Welcome back to your financial dashboard
@@ -74,9 +74,6 @@ const SignIn = () => {
             <Card className="border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl shadow-2xl shadow-slate-900/10 dark:shadow-slate-900/50 animate-slide-up animation-delay-200">
               <CardHeader className="text-center pb-8 pt-8">
                 <div className="flex items-center justify-center mb-4">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-white dark:from-slate-700 dark:to-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-slate-800/50">
-                    <Shield className="w-6 h-6 text-slate-600 dark:text-slate-300" />
-                  </div>
                 </div>
                 <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">
                   Sign In to Your Account
@@ -141,7 +138,7 @@ const SignIn = () => {
                   <Button
                       type="submit"
                       disabled={isLoading}
-                      className="w-full h-12 rounded-3xl bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="w-full h-12 rounded-3xl bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     {isLoading ? (
                         <div className="flex items-center">

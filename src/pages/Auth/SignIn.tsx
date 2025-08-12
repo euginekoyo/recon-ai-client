@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Alert, AlertDescription } from '@/components/ui/alert.tsx';
-import { Eye, EyeOff, Lock, User, Sparkles, Shield, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast.ts';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils.ts';
 import { useLoginMutation } from '@/store/redux/AuthApi.ts';
+import bankLogo from '@/components/layout/Images/bank-logo.png';
 
 const SignIn = () => {
   const [username, setUsername] = useState('');
@@ -55,13 +56,11 @@ const SignIn = () => {
           <div className="absolute -bottom-8 left-20 w-96 h-96 bg-emerald-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
         </div>
 
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-12">
+        <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-12">
           <div className="w-full max-w-md">
             <div className="text-center mb-8 animate-fade-in">
               <div className="flex items-center justify-center mb-6">
-                <div className="flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-2xl shadow-blue-500/25 dark:shadow-blue-400/20 animate-float">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
+                <img src={bankLogo} alt="Bank Logo" className="h-16 w-auto" />
               </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-2">
                 AuditFusion
@@ -73,8 +72,6 @@ const SignIn = () => {
 
             <Card className="border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl shadow-2xl shadow-slate-900/10 dark:shadow-slate-900/50 animate-slide-up animation-delay-200">
               <CardHeader className="text-center pb-8 pt-8">
-                <div className="flex items-center justify-center mb-4">
-                </div>
                 <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">
                   Sign In to Your Account
                 </CardTitle>
@@ -161,6 +158,9 @@ const SignIn = () => {
               </CardContent>
             </Card>
           </div>
+          <footer className="mt-8 text-center text-sm text-gray-500">
+            ISTL © All Rights Reserved 2025
+          </footer>
         </div>
         <style>{`
         @keyframes blob {
@@ -168,10 +168,6 @@ const SignIn = () => {
           33% { transform: translate(30px, -50px) scale(1.1); }
           66% { transform: translate(-20px, 20px) scale(0.9); }
           100% { transform: translate(0px, 0px) scale(1); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
         }
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(-20px); }
@@ -183,9 +179,6 @@ const SignIn = () => {
         }
         .animate-blob {
           animation: blob 7s infinite;
-        }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
         }
         .animate-fade-in {
           animation: fade-in 0.6s ease-out;

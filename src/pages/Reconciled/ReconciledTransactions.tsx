@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +8,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogClose,
 } from '@/components/ui/dialog';
 import {
     Search,
@@ -26,10 +24,11 @@ import {
     Building2,
     MessageSquare,
     ThumbsUp,
-    X,
     Loader2,
     Repeat,
     Code,
+    ArrowUp,
+    ArrowDown,
 } from 'lucide-react';
 import {
     useGetBatchesQuery,
@@ -120,7 +119,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     render() {
         if (this.state.hasError) {
             return (
-                <div className="text-rose-700 p-4 rounded-lg bg-rose-50">
+                <div className="text-rose-700 p-3 rounded-lg bg-rose-50">
                     Error rendering component. Check console for details.
                 </div>
             );
@@ -306,8 +305,8 @@ const escapeCsvValue = (value: string | number | undefined): string => {
     const str = String(value);
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
+}
+return str;
 };
 
 const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
@@ -384,6 +383,8 @@ const ReconciledTransactions: React.FC = () => {
     const [selectedRecord, setSelectedRecord] = useState<BatchRecord | null>(null);
     const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
     const [showRawData, setShowRawData] = useState(false);
+    const [sortField, setSortField] = useState<keyof ReconciliationBatch | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();
     const batches = useMemo(() => batchesData ? batchesData.map(mapReconBatchToReconciliationBatch) : [], [batchesData]);
@@ -477,7 +478,7 @@ const ReconciledTransactions: React.FC = () => {
         const Icon = config.icon;
 
         return (
-            <Badge className={`${config.color} font-medium px-3 py-1 rounded-full flex items-center gap-1`}>
+            <Badge className={`${config.color} font-medium px-2 py-0.5 rounded-full flex items-center gap-1 text-xs`}>
                 <Icon className="w-3 h-3" />
                 {status.charAt(0).toUpperCase() + status.slice(1)}
             </Badge>
@@ -502,7 +503,7 @@ const ReconciledTransactions: React.FC = () => {
     }, []);
 
     const filteredBatches = useMemo(() => {
-        return batches.map(batch => {
+        const filtered = batches.map(batch => {
             const matchingBatch = selectedBatchWithRecords && selectedBatchWithRecords.id === batch.id ? selectedBatchWithRecords : batch;
             return {
                 ...matchingBatch,
@@ -520,7 +521,33 @@ const ReconciledTransactions: React.FC = () => {
                     batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
                 (statusFilter === 'all' || batch.status === statusFilter)
         );
-    }, [batches, searchTerm, statusFilter, selectedBatchWithRecords]);
+
+        if (sortField) {
+            filtered.sort((a, b) => {
+                const aValue = a[sortField];
+                const bValue = b[sortField];
+
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return sortDirection === 'asc'
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return sortDirection === 'asc'
+                        ? aValue - bValue
+                        : bValue - aValue;
+                } else if (sortField === 'date') {
+                    const aDate = new Date(aValue).getTime();
+                    const bDate = new Date(bValue).getTime();
+                    return sortDirection === 'asc'
+                        ? aDate - bDate
+                        : bDate - aDate;
+                }
+                return 0;
+            });
+        }
+
+        return filtered;
+    }, [batches, searchTerm, statusFilter, selectedBatchWithRecords, sortField, sortDirection]);
 
     const handleRetryBatch = useCallback(async () => {
         if (!numericBatchId) return;
@@ -567,25 +594,25 @@ const ReconciledTransactions: React.FC = () => {
         if (!data) return null;
 
         return (
-            <div className="space-y-2">
-                <h4 className="font-semibold text-gray-800">{title}</h4>
+            <div className="space-y-1">
+                <h4 className="font-semibold text-gray-800 text-sm">{title}</h4>
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse bg-white rounded-lg shadow-sm border border-gray-200">
+                    <table className="w-full border-collapse bg-white rounded-md shadow-sm border border-gray-200">
                         <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Field</th>
-                            <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Value</th>
+                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Field</th>
+                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Value</th>
                         </tr>
                         </thead>
                         <tbody>
                         {Object.entries(data).map(([key, value]) => (
                             <tr key={key} className="border-b border-gray-100 last:border-b-0">
-                                <td className="px-4 py-2 text-sm">
+                                <td className="px-3 py-1 text-xs">
                                     <span className={getFieldErrorStatus(key, selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                         {key}
                                     </span>
                                 </td>
-                                <td className="px-4 py-2 text-sm text-gray-800">
+                                <td className="px-3 py-1 text-xs text-gray-800">
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                 </td>
                             </tr>
@@ -597,177 +624,228 @@ const ReconciledTransactions: React.FC = () => {
         );
     };
 
-    const BatchesList = () => (
-        <div className="space-y-6 animate-fade-in">
-            <div className="text-center space-y-3">
-                <div className="inline-flex items-center justify-center p-3 rounded-full bg-indigo-100">
-                    <GitMerge className="w-8 h-8 text-indigo-600" />
+    const BatchesList = () => {
+        const handleSort = (field: keyof ReconciliationBatch) => {
+            if (sortField === field) {
+                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+            } else {
+                setSortField(field);
+                setSortDirection('asc');
+            }
+        };
+
+        return (
+            <div className="space-y-4 animate-fade-in">
+                <div className="text-center space-y-2">
+                    <div className="inline-flex items-center justify-center p-2 rounded-full bg-indigo-100">
+                        <GitMerge className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h1 className="text-3xl font-bold text-gray-800">Reconciliation Batches</h1>
+                    <p className="text-base text-gray-600 max-w-xl mx-auto">
+                        Review and manage all reconciliation batches with detailed insights and status tracking.
+                    </p>
                 </div>
-                <h1 className="text-4xl font-bold text-gray-800">Reconciliation Batches</h1>
-                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Review and manage all reconciliation batches with detailed insights and status tracking.
-                </p>
-            </div>
 
-            {isBatchesLoading && (
-                <Card className="border-none bg-white shadow-lg rounded-xl">
-                    <CardContent className="p-6 flex items-center justify-center gap-3">
-                        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                        <span className="text-gray-700 font-medium">Loading batches...</span>
-                    </CardContent>
-                </Card>
-            )}
+                {isBatchesLoading && (
+                    <Card className="border-none bg-white shadow-md rounded-lg">
+                        <CardContent className="p-4 flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                            <span className="text-gray-700 font-medium text-sm">Loading batches...</span>
+                        </CardContent>
+                    </Card>
+                )}
 
-            {batchesError && (
-                <Card className="border-none bg-rose-50 shadow-lg rounded-xl">
-                    <CardContent className="p-6 flex items-center gap-3">
-                        <AlertTriangle className="h-6 w-6 text-rose-600" />
-                        <span className="text-rose-700 font-medium">Failed to load batches. Please try again.</span>
-                    </CardContent>
-                </Card>
-            )}
+                {batchesError && (
+                    <Card className="border-none bg-rose-50 shadow-md rounded-lg">
+                        <CardContent className="p-4 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-rose-600" />
+                            <span className="text-rose-700 font-medium text-sm">Failed to load batches. Please try again.</span>
+                        </CardContent>
+                    </Card>
+                )}
 
-            {!isBatchesLoading && !batchesError && (
-                <Card className="border-none bg-white shadow-lg rounded-xl">
-                    <CardHeader>
-                        <CardTitle className="text-2xl font-semibold text-gray-800">Batch History</CardTitle>
-                        <CardDescription className="text-gray-600">
-                            View all reconciliation batches with summary statistics and status.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                        <div className="flex flex-col lg:flex-row gap-4 mb-6">
-                            <div className="relative flex-1">
-                                <Search
-                                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                                <Input
-                                    placeholder="Search batch ID, file names..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-12 h-11 rounded-lg bg-gray-50 border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
-                                />
-                            </div>
-                            <div className="flex gap-3">
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="h-11 px-4 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:bg-white focus:border-indigo-500 transition-all"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="running">Running</option>
-                                    <option value="done">Done</option>
-                                    <option value="failed">Failed</option>
-                                </select>
-                                <Button className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Export All
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200">
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Batch ID</th>
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Date</th>
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Status</th>
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Records</th>
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Files</th>
-                                    <th className="px-6 py-4 text-left font-semibold text-gray-700">Actions</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {filteredBatches.map((batch) => (
-                                    <tr
-                                        key={batch.id}
-                                        id={`batch-row-${batch.id}`}
-                                        className={`hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 ${
-                                            lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''
-                                        }`}
+                {!isBatchesLoading && !batchesError && (
+                    <Card className="border-none bg-white shadow-md rounded-lg">
+                        <CardHeader>
+                            <CardTitle className="text-xl font-semibold text-gray-800">Batch History</CardTitle>
+                            <CardDescription className="text-gray-600 text-sm">
+                                View all reconciliation batches with summary statistics and status.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            <div className="flex flex-col lg:flex-row gap-3 mb-4">
+                                <div className="relative flex-1">
+                                    <Search
+                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                    <Input
+                                        placeholder="Search batch ID, file names..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10 h-9 rounded-md bg-gray-50 border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                        className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
                                     >
-                                        <td className="px-6 py-4 font-mono font-medium text-indigo-700">{batch.id}</td>
-                                        <td className="px-6 py-4 text-gray-600">{formatDate(batch.date)}</td>
-                                        <td className="px-6 py-4">{getStatusBadge(batch.status)}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium text-gray-800">
-                                                    {batch.totalRecords.toLocaleString()} total
-                                                </div>
-                                                <div className="text-xs text-gray-600">
-                                                    {batch.matchedRecords} matched, {batch.unmatchedRecords} unmatched, {batch.partialRecords} partial
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="space-y-1 text-xs text-gray-600">
-                                                <div className="flex items-center gap-1">
-                                                    <Building2 className="w-3 h-3 text-teal-600" />
-                                                    {batch.bankFileName}
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Users className="w-3 h-3 text-blue-600" />
-                                                    {batch.vendorFileName}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setSelectedBatch(batch);
-                                                        setSelectedView('details');
-                                                        setLastSelectedBatchId(batch.id);
-                                                        navigate(`/reconciliation/results/${batch.id}`);
-                                                    }}
-                                                    className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 text-gray-700"
-                                                >
-                                                    <Eye className="w-3 h-3 mr-1" />
-                                                    View Details
-                                                </Button>
-                                                {batch.status === 'failed' && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={handleRetryBatch}
-                                                        disabled={isRetrying}
-                                                        className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700"
-                                                    >
-                                                        {isRetrying ? (
-                                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                        ) : (
-                                                            <Repeat className="w-3 h-3 mr-1" />
-                                                        )}
-                                                        Retry
-                                                    </Button>
+                                        <option value="all">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="running">Running</option>
+                                        <option value="done">Done</option>
+                                        <option value="failed">Failed</option>
+                                    </select>
+                                    <Button className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm">
+                                        <Download className="h-3 w-3 mr-1" />
+                                        Export All
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200">
+                                        <th
+                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
+                                            onClick={() => handleSort('id')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Batch ID
+                                                {sortField === 'id' && (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
                                                 )}
                                             </div>
-                                        </td>
+                                        </th>
+                                        <th
+                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
+                                            onClick={() => handleSort('date')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Date
+                                                {sortField === 'date' && (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
+                                            onClick={() => handleSort('status')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Status
+                                                {sortField === 'status' && (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
+                                            onClick={() => handleSort('totalRecords')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Records
+                                                {sortField === 'totalRecords' && (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Files</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Actions</th>
                                     </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                            {filteredBatches.length === 0 && (
-                                <div className="text-center py-8 text-gray-600">No batches found matching your criteria.</div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
-    );
+                                    </thead>
+                                    <tbody>
+                                    {filteredBatches.map((batch) => (
+                                        <tr
+                                            key={batch.id}
+                                            id={`batch-row-${batch.id}`}
+                                            className={`hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 ${
+                                                lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''
+                                            }`}
+                                        >
+                                            <td className="px-4 py-2 font-mono font-medium text-indigo-700 text-sm">{batch.id}</td>
+                                            <td className="px-4 py-2 text-gray-600 text-sm">{formatDate(batch.date)}</td>
+                                            <td className="px-4 py-2">{getStatusBadge(batch.status)}</td>
+                                            <td className="px-4 py-2">
+                                                <div className="space-y-0.5">
+                                                    <div className="text-xs font-medium text-gray-800">
+                                                        {batch.totalRecords.toLocaleString()} total
+                                                    </div>
+                                                    <div className="text-xs text-gray-600">
+                                                        {batch.matchedRecords} matched, {batch.unmatchedRecords} unmatched, {batch.partialRecords} partial
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <div className="space-y-0.5 text-xs text-gray-600">
+                                                    <div className="flex items-center gap-1">
+                                                        <Building2 className="w-3 h-3 text-teal-600" />
+                                                        {batch.bankFileName}
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Users className="w-3 h-3 text-blue-600" />
+                                                        {batch.vendorFileName}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="xs"
+                                                        onClick={() => {
+                                                            setSelectedBatch(batch);
+                                                            setSelectedView('details');
+                                                            setLastSelectedBatchId(batch.id);
+                                                            navigate(`/reconciliation/results/${batch.id}`);
+                                                        }}
+                                                        className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 text-gray-700 text-xs"
+                                                    >
+                                                        <Eye className="w-3 h-3 mr-1" />
+                                                        View Details
+                                                    </Button>
+                                                    {batch.status === 'failed' && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="xs"
+                                                            onClick={handleRetryBatch}
+                                                            disabled={isRetrying}
+                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700 text-xs"
+                                                        >
+                                                            {isRetrying ? (
+                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                            ) : (
+                                                                <Repeat className="w-3 h-3 mr-1" />
+                                                            )}
+                                                            Retry
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                                {filteredBatches.length === 0 && (
+                                    <div className="text-center py-6 text-gray-600 text-sm">No batches found matching your criteria.</div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        );
+    };
 
     const BatchDetails = () => {
         if (!selectedBatch || !selectedBatchWithRecords) return null;
 
         return (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-4 animate-fade-in">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -776,27 +854,27 @@ const ReconciledTransactions: React.FC = () => {
                                 setSelectedRecord(null);
                                 navigate('/reconciled');
                             }}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
                         >
                             ← Back to Batches
                         </Button>
                         <div>
-                            <h1 className="text-2xl font-semibold text-gray-800">{selectedBatch.id}</h1>
-                            <p className="text-sm text-gray-600">Processed on {formatDate(selectedBatch.date)}</p>
+                            <h1 className="text-xl obsessive text-gray-800">{selectedBatch.id}</h1>
+                            <p className="text-xs text-gray-600">Processed on {formatDate(selectedBatch.date)}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         {getStatusBadge(selectedBatch.status)}
                         {selectedBatchWithRecords.status === 'failed' && selectedBatchWithRecords.failureReason && (
-                            <Badge className="bg-rose-500 text-white rounded-full">
+                            <Badge className="bg-rose-500 text-white rounded-full text-xs">
                                 {selectedBatchWithRecords.failureReason}
                             </Badge>
                         )}
                         <Button
-                            className="h-10 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-lg"
+                            className="h-8 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-sm"
                             onClick={handleExportIssues}
                         >
-                            <Download className="h-4 w-4 mr-2" />
+                            <Download className="h-3 w-3 mr-1" />
                             Export Issues
                         </Button>
                         <ReportDownloader batchId={numericBatchId!.toString()} />
@@ -804,19 +882,19 @@ const ReconciledTransactions: React.FC = () => {
                 </div>
 
                 {(isBatchLoading || isRecordsLoading) && (
-                    <Card className="border-none bg-white shadow-lg rounded-xl">
-                        <CardContent className="p-6 flex items-center justify-center gap-3">
-                            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                            <span className="text-gray-700 font-medium">Loading batch details...</span>
+                    <Card className="border-none bg-white shadow-md rounded-lg">
+                        <CardContent className="p-4 flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                            <span className="text-gray-700 font-medium text-sm">Loading batch details...</span>
                         </CardContent>
                     </Card>
                 )}
 
                 {(batchError || recordsError) && (
-                    <Card className="border-none bg-rose-50 shadow-lg rounded-xl">
-                        <CardContent className="p-6 flex items-center gap-3">
-                            <AlertTriangle className="h-6 w-6 text-rose-600" />
-                            <span className="text-rose-700 font-medium">
+                    <Card className="border-none bg-rose-50 shadow-md rounded-lg">
+                        <CardContent className="p-4 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-rose-600" />
+                            <span className="text-rose-700 font-medium text-sm">
                                 {batchError ? 'Failed to load batch details.' : 'Failed to load records.'} Please try again.
                             </span>
                         </CardContent>
@@ -824,63 +902,63 @@ const ReconciledTransactions: React.FC = () => {
                 )}
 
                 {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card className="border-none bg-white shadow-lg rounded-xl">
-                            <CardContent className="p-4 flex items-center justify-between">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <Card className="border-none bg-white shadow-md rounded-md">
+                            <CardContent className="p-3 flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600 font-medium">Total Records</p>
-                                    <p className="text-2xl font-bold text-gray-800">
+                                    <p className="text-xs text-gray-600 font-medium">Total Records</p>
+                                    <p className="text-xl font-bold text-gray-800">
                                         {selectedBatchWithRecords.totalRecords.toLocaleString()}
                                     </p>
                                 </div>
-                                <FileText className="w-8 h-8 text-indigo-600" />
+                                <FileText className="w-5 h-5 text-indigo-600" />
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none bg-white shadow-lg rounded-xl">
-                            <CardContent className="p-4 flex items-center justify-between">
+                        <Card className="border-none bg-white shadow-md rounded-md">
+                            <CardContent className="p-3 flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600 font-medium">Match Rate</p>
-                                    <p className="text-2xl font-bold text-gray-800">{selectedBatchWithRecords.matchRate}%</p>
+                                    <p className="text-xs text-gray-600 font-medium">Match Rate</p>
+                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.matchRate}%</p>
                                 </div>
-                                <TrendingUp className="w-8 h-8 text-teal-600" />
+                                <TrendingUp className="w-5 h-5 text-teal-600" />
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none bg-white shadow-lg rounded-xl">
-                            <CardContent className="p-4 flex items-center justify-between">
+                        <Card className="border-none bg-white shadow-md rounded-md">
+                            <CardContent className="p-3 flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600 font-medium">Anomalies</p>
-                                    <p className="text-2xl font-bold text-gray-800">{selectedBatchWithRecords.anomalyCount}</p>
+                                    <p className="text-xs text-gray-600 font-medium">Anomalies</p>
+                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.anomalyCount}</p>
                                 </div>
-                                <AlertTriangle className="w-8 h-8 text-amber-600" />
+                                <AlertTriangle className="w-5 h-5 text-amber-600" />
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none bg-white shadow-lg rounded-xl">
-                            <CardContent className="p-4 flex items-center justify-between">
+                        <Card className="border-none bg-white shadow-md rounded-md">
+                            <CardContent className="p-3 flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600 font-medium">Processing Time</p>
-                                    <p className="text-2xl font-bold text-gray-800">
+                                    <p className="text-xs text-gray-600 font-medium">Processing Time</p>
+                                    <p className="text-xl font-bold text-gray-800">
                                         {selectedBatchWithRecords.processingTime || 'N/A'}
                                     </p>
                                 </div>
-                                <Clock className="w-8 h-8 text-purple-600" />
+                                <Clock className="w-5 h-5 text-purple-600" />
                             </CardContent>
                         </Card>
                     </div>
                 )}
 
                 {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
-                    <Card className="border-none bg-white shadow-lg rounded-xl">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-4">
-                                    <h3 className="text-xl font-semibold text-gray-800">Transaction Records</h3>
+                    <Card className="border-none bg-white shadow-md rounded-md">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="text-lg font-semibold text-gray-800">Transaction Records</h3>
                                     <select
                                         value={recordStatusFilter}
                                         onChange={(e) => setRecordStatusFilter(e.target.value)}
-                                        className="h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:bg-white focus:border-indigo-500 transition-all"
+                                        className="h-8 px-2 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
                                     >
                                         <option value="all">All Records</option>
                                         <option value="matched">Matched</option>
@@ -888,7 +966,7 @@ const ReconciledTransactions: React.FC = () => {
                                         <option value="partial">Partial Match</option>
                                     </select>
                                 </div>
-                                <Badge className="bg-indigo-500 text-white rounded-full">
+                                <Badge className="bg-indigo-500 text-white rounded-full text-xs">
                                     {filteredRecords.length} records
                                 </Badge>
                             </div>
@@ -898,13 +976,13 @@ const ReconciledTransactions: React.FC = () => {
                                 <table className="w-full">
                                     <thead>
                                     <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Transaction ID</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Description</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Amount</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Status</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Confidence</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Flags</th>
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Actions</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Transaction ID</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Description</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Amount</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Status</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Confidence</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Flags</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Actions</th>
                                     </tr>
                                     </thead>
                                     <tbody>
@@ -914,17 +992,17 @@ const ReconciledTransactions: React.FC = () => {
                                             className="hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 cursor-pointer"
                                             onClick={() => debouncedHandleRowClick(record)}
                                         >
-                                            <td className="px-6 py-4 font-mono text-indigo-700">{record.transactionId}</td>
-                                            <td className="px-6 py-4 text-gray-800">{record.description}</td>
-                                            <td className="px-6 py-4 font-semibold text-gray-800">
+                                            <td className="px-4 py-2 font-mono text-indigo-700 text-sm">{record.transactionId}</td>
+                                            <td className="px-4 py-2 text-gray-800 text-sm">{record.description}</td>
+                                            <td className="px-4 py-2 font-semibold text-gray-800 text-sm">
                                                 {formatCurrency(record.amount)}
                                             </td>
-                                            <td className="px-6 py-4">{getStatusBadge(record.status)}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 bg-gray-200 rounded-full h-2 w-16">
+                                            <td className="px-4 py-2">{getStatusBadge(record.status)}</td>
+                                            <td className="px-4 py-2">
+                                                <div className="flex items-center gap-1">
+                                                    <div className="flex-1 bg-gray-200 rounded-full h-1.5 w-12">
                                                         <div
-                                                            className={`h-2 rounded-full transition-all duration-300 ${
+                                                            className={`h-1.5 rounded-full transition-all duration-300 ${
                                                                 record.confidence > 0.8
                                                                     ? 'bg-teal-500'
                                                                     : record.confidence > 0.5
@@ -934,10 +1012,10 @@ const ReconciledTransactions: React.FC = () => {
                                                             style={{ width: `${record.confidence * 100}%` }}
                                                         ></div>
                                                     </div>
-                                                    <span className="text-sm text-gray-600">{Math.round(record.confidence * 100)}%</span>
+                                                    <span className="text-xs text-gray-600">{Math.round(record.confidence * 100)}%</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-2">
                                                 <div className="flex flex-wrap gap-1">
                                                     {Array.isArray(record.flags) && record.flags.length > 0 ? (
                                                         record.flags.map((flag, i) => (
@@ -955,18 +1033,18 @@ const ReconciledTransactions: React.FC = () => {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
+                                            <td className="px-4 py-2">
+                                                <div className="flex items-center gap-1">
                                                     {record.resolved ? (
-                                                        <Badge className="bg-teal-500 text-white rounded-full">
+                                                        <Badge className="bg-teal-500 text-white rounded-full text-xs">
                                                             <CheckCircle className="w-3 h-3 mr-1" />
                                                             Resolved
                                                         </Badge>
                                                     ) : (
                                                         <Button
                                                             variant="outline"
-                                                            size="sm"
-                                                            className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 text-gray-700"
+                                                            size="xs"
+                                                            className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 text-gray-700 text-xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleResolveRecord(record.id);
@@ -988,7 +1066,7 @@ const ReconciledTransactions: React.FC = () => {
                                     </tbody>
                                 </table>
                                 {filteredRecords.length === 0 && (
-                                    <div className="text-center py-8 text-gray-600">No records found matching your criteria.</div>
+                                    <div className="text-center py-6 text-gray-600 text-sm">No records found matching your criteria.</div>
                                 )}
                             </div>
                         </CardContent>
@@ -1003,138 +1081,138 @@ const ReconciledTransactions: React.FC = () => {
                                 setShowRawData(false);
                             }
                         }}>
-                            <DialogContent className="sm:max-w-3xl bg-white border-none shadow-xl rounded-xl">
-                                <DialogHeader className="bg-gray-50 p-4 rounded-t-xl">
-                                    <DialogTitle className="text-lg font-semibold text-gray-800">
+                            <DialogContent className="sm:max-w-2xl bg-white border-none shadow-lg rounded-md">
+                                <DialogHeader className="bg-gray-50 p-3 rounded-t-md">
+                                    <DialogTitle className="text-base font-semibold text-gray-800">
                                         Transaction Detail: {selectedRecord.transactionId}
                                     </DialogTitle>
                                 </DialogHeader>
-                                <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
                                     {selectedRecord.batchInfo && (
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <GitMerge className="w-4 h-4 mr-2 text-indigo-600" />
+                                        <div className="space-y-3">
+                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                                <GitMerge className="w-3 h-3 mr-1 text-indigo-600" />
                                                 Batch Information
                                             </h4>
-                                            <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-200">
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Batch ID:</span>
-                                                    <span className="font-mono text-sm text-gray-800">{selectedRecord.batchInfo.id || 'N/A'}</span>
+                                            <div className="bg-gray-50 p-3 rounded-md space-y-1 border border-gray-200">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Batch ID:</span>
+                                                    <span className="font-mono text-gray-800">{selectedRecord.batchInfo.id || 'N/A'}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Bank File:</span>
-                                                    <span className="text-sm text-gray-800">{selectedRecord.batchInfo.backofficeFile || 'N/A'}</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Bank File:</span>
+                                                    <span className="text-gray-800">{selectedRecord.batchInfo.backofficeFile || 'N/A'}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Vendor File:</span>
-                                                    <span className="text-sm text-gray-800">{selectedRecord.batchInfo.vendorFile || 'N/A'}</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Vendor File:</span>
+                                                    <span className="text-gray-800">{selectedRecord.batchInfo.vendorFile || 'N/A'}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Status:</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Status:</span>
                                                     {getStatusBadge(selectedRecord.batchInfo.status || 'pending')}
                                                 </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Created At:</span>
-                                                    <span className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.createdAt || new Date().toISOString())}</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Created At:</span>
+                                                    <span className="text-gray-800">{formatDate(selectedRecord.batchInfo.createdAt || new Date().toISOString())}</span>
                                                 </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-sm text-gray-600">Updated At:</span>
-                                                    <span className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.updatedAt || new Date().toISOString())}</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">Updated At:</span>
+                                                    <span className="text-gray-800">{formatDate(selectedRecord.batchInfo.updatedAt || new Date().toISOString())}</span>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <Building2 className="w-4 h-4 mr-2 text-teal-600" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-3">
+                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                                <Building2 className="w-3 h-3 mr-1 text-teal-600" />
                                                 Bank Record
                                             </h4>
                                             {selectedRecord.bankRecord ? (
-                                                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">ID:</span>
-                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.id || 'N/A'}</span>
+                                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">ID:</span>
+                                                        <span className="font-mono text-gray-800">{selectedRecord.bankRecord.id || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Reference:</span>
-                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.reference || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Reference:</span>
+                                                        <span className="font-mono text-gray-800">{selectedRecord.bankRecord.reference || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Amount:</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Amount:</span>
                                                         <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.bankRecord.amount || 0)}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Date:</span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.date || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Date:</span>
+                                                        <span className="text-gray-800">{selectedRecord.bankRecord.date || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                                             Description
                                                         </span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.description || 'N/A'}</span>
+                                                        <span className="text-gray-800">{selectedRecord.bankRecord.description || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                                             Status
                                                         </span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.status || 'N/A'}</span>
+                                                        <span className="text-gray-800">{selectedRecord.bankRecord.status || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Direction:</span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.direction || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Direction:</span>
+                                                        <span className="text-gray-800">{selectedRecord.bankRecord.direction || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
+                                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
                                                     No bank record found
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <Users className="w-4 h-4 mr-2 text-blue-600" />
+                                        <div className="space-y-3">
+                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                                <Users className="w-3 h-3 mr-1 text-blue-600" />
                                                 System Record
                                             </h4>
                                             {selectedRecord.systemRecord ? (
-                                                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">ID:</span>
-                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.id || 'N/A'}</span>
+                                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">ID:</span>
+                                                        <span className="font-mono text-gray-800">{selectedRecord.systemRecord.id || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Reference:</span>
-                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.reference || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Reference:</span>
+                                                        <span className="font-mono text-gray-800">{selectedRecord.systemRecord.reference || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Amount:</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Amount:</span>
                                                         <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.systemRecord.amount || 0)}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Date:</span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.date || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Date:</span>
+                                                        <span className="text-gray-800">{selectedRecord.systemRecord.date || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                                             Description
                                                         </span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.description || 'N/A'}</span>
+                                                        <span className="text-gray-800">{selectedRecord.systemRecord.description || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                                             Status
                                                         </span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.status || 'N/A'}</span>
+                                                        <span className="text-gray-800">{selectedRecord.systemRecord.status || 'N/A'}</span>
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-sm text-gray-600">Direction:</span>
-                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.direction || 'N/A'}</span>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-600">Direction:</span>
+                                                        <span className="text-gray-800">{selectedRecord.systemRecord.direction || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
+                                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
                                                     No system record found
                                                 </div>
                                             )}
@@ -1144,35 +1222,35 @@ const ReconciledTransactions: React.FC = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
+                                        className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
                                         onClick={() => setShowRawData(!showRawData)}
                                     >
-                                        <Code className="w-4 h-4 mr-2" />
+                                        <Code className="w-3 h-3 mr-1" />
                                         {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
                                     </Button>
 
                                     {showRawData && selectedRecord.displayData && (
-                                        <div className="space-y-6">
+                                        <div className="space-y-4">
                                             {renderDataTable(selectedRecord.displayData.backoffice?.raw, 'Bank Raw Data', 'backoffice')}
                                             {renderDataTable(selectedRecord.displayData.vendor?.raw, 'Vendor Raw Data', 'vendor')}
                                         </div>
                                     )}
 
                                     {selectedRecord.aiReasoning && (
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <AlertTriangle className="w-4 h-4 mr-2 text-purple-600" />
+                                        <div className="space-y-3">
+                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                                <AlertTriangle className="w-3 h-3 mr-1 text-purple-600" />
                                                 AI Match Reasoning
                                             </h4>
-                                            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                                            <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
                                                 {selectedRecord.aiReasoning.split('; ').length > 1 ? (
-                                                    <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+                                                    <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
                                                         {selectedRecord.aiReasoning.split('; ').map((reason, index) => (
-                                                            <li key={index} className="pl-2 flex items-center gap-2">
+                                                            <li key={index} className="pl-1 flex items-center gap-1">
                                                                 <Badge
                                                                     className={`${
                                                                         reason.includes('mismatch') ? 'bg-rose-500 text-white' : 'bg-purple-500 text-white'
-                                                                    } rounded-full`}
+                                                                    } rounded-full text-xs`}
                                                                 >
                                                                     {reason.includes('mismatch') ? 'Error' : 'Info'}
                                                                 </Badge>
@@ -1181,31 +1259,31 @@ const ReconciledTransactions: React.FC = () => {
                                                         ))}
                                                     </ul>
                                                 ) : (
-                                                    <p className="text-sm text-gray-700">{selectedRecord.aiReasoning}</p>
+                                                    <p className="text-xs text-gray-700">{selectedRecord.aiReasoning}</p>
                                                 )}
                                             </div>
                                         </div>
                                     )}
 
-                                    <div className="space-y-2">
-                                        <h4 className="font-semibold text-gray-800 flex items-center">
-                                            <MessageSquare className="w-4 h-4 mr-2 text-indigo-600" />
+                                    <div className="space-y-1">
+                                        <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" />
                                             Comments ({selectedRecord.comments.length})
                                         </h4>
-                                        <div className="space-y-2">
+                                        <div className="space-y-1">
                                             {selectedRecord.comments.length > 0 ? (
                                                 selectedRecord.comments.map((comment, i) => (
-                                                    <div key={i} className="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 border border-gray-200">
+                                                    <div key={i} className="bg-gray-50 p-2 rounded-md text-xs text-gray-700 border border-gray-200">
                                                         {comment}
                                                     </div>
                                                 ))
                                             ) : (
-                                                <p className="text-sm text-gray-600">No comments</p>
+                                                <p className="text-xs text-gray-600">No comments</p>
                                             )}
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
+                                                className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
                                                 disabled
                                             >
                                                 Add Comment
@@ -1213,24 +1291,24 @@ const ReconciledTransactions: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                                        <div className="flex items-center gap-1">
                                             {getStatusBadge(selectedRecord.status)}
-                                            <Badge className="bg-indigo-500 text-white rounded-full">
+                                            <Badge className="bg-indigo-500 text-white rounded-full text-xs">
                                                 {Math.round(selectedRecord.confidence * 100)}% confidence
                                             </Badge>
                                             {selectedRecord.resolved && (
-                                                <Badge className="bg-teal-500 text-white rounded-full">
+                                                <Badge className="bg-teal-500 text-white rounded-full text-xs">
                                                     <CheckCircle className="w-3 h-3 mr-1" />
                                                     Resolved
                                                 </Badge>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-1">
                                             {!selectedRecord.resolved && (
                                                 <Button
-                                                    size="sm"
-                                                    className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg"
+                                                    size="xs"
+                                                    className="bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs"
                                                     onClick={() => handleResolveRecord(selectedRecord.id)}
                                                     disabled={isResolving}
                                                 >
@@ -1244,8 +1322,8 @@ const ReconciledTransactions: React.FC = () => {
                                             )}
                                             <Button
                                                 variant="outline"
-                                                size="sm"
-                                                className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
+                                                size="xs"
+                                                className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-xs"
                                                 disabled
                                             >
                                                 <MessageSquare className="w-3 h-3 mr-1" />
@@ -1263,8 +1341,8 @@ const ReconciledTransactions: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-gray-50 p-6">
+            <div className="max-w-6xl mx-auto">
                 {selectedView === 'list' ? <BatchesList /> : <BatchDetails />}
             </div>
             <style jsx>{`

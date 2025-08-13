@@ -1,35 +1,23 @@
-import React, { useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import React, {useMemo} from 'react';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
 import {
-  GitMerge,
-  Activity,
   AlertTriangle,
+  Bell,
   CheckCircle,
   Clock,
-  BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
-  FileText,
-  Target,
-  Zap,
-  RefreshCw,
   Database,
-  Shield,
-  Users,
-  Calendar,
-  Filter,
-  Settings,
-  Bell,
   Download,
+  Filter,
+  MoreHorizontal,
+  Target,
   Upload,
-  Search,
-  MoreHorizontal
+  Zap
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
+import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 
-import { useGetBatchesQuery, useGetRecordsQuery } from '@/store/redux/reconciliationApi.ts';
+import {useGetBatchesQuery, useGetRecordsQuery} from '@/store/redux/reconciliationApi.ts';
 
 const Dashboard = () => {
   const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();
@@ -46,11 +34,12 @@ const Dashboard = () => {
     if (!batchesData || isBatchesLoading) return [];
 
     const totalBatches = batchesData.length;
-    const completedBatches = batchesData.filter(b => b.status === 'completed').length;
+    const completedBatches = batchesData.filter(b => b.status === 'COMPLETED').length;
+
 
     // Calculate average processing time for completed batches
     const avgProcessingTime = batchesData
-        .filter(b => b.status === 'completed' && b.createdAt && b.updatedAt)
+        .filter(b => b.status === 'COMPLETED' && b.createdAt && b.updatedAt)
         .reduce((sum, batch) => {
           const start = new Date(batch.createdAt).getTime();
           const end = new Date(batch.updatedAt).getTime();
@@ -60,11 +49,18 @@ const Dashboard = () => {
     // Calculate match rate from records if available
     let matchRate = 'N/A';
     let anomalies = 0;
-    if (recordsData && !isRecordsLoading) {
-      const totalRecordsInBatch = recordsData.length;
-      const matchedRecords = recordsData.filter(r => r.matchStatus.toLowerCase().includes('full')).length;
-      matchRate = totalRecordsInBatch > 0 ? `${((matchedRecords / totalRecordsInBatch) * 100).toFixed(1)}%` : '0%';
-      anomalies = recordsData.filter(r => !r.matchStatus.toLowerCase().includes('full')).length;
+    if (batchesData && !isRecordsLoading) {
+      const allRecords = batchesData.flatMap(batch => batch.records || []);
+      const totalRecords = allRecords.length;
+      const matchedRecords = allRecords.filter(r =>
+          r.status==='COMPLETED'
+      ).length;
+
+      matchRate = totalRecords > 0
+          ? `${((matchedRecords / totalRecords) * 100).toFixed(1)}%`
+          : '0%';
+      anomalies = batchesData.filter(b => b.status === 'FAILED').length;
+
     }
 
     return [
@@ -375,33 +371,33 @@ const Dashboard = () => {
             </Card>
 
             {/* Quick Actions */}
-            <Card className="bg-white/60 backdrop-blur-sm border-white/20">
-              <CardHeader>
-                <CardTitle className="text-slate-800">Quick Actions</CardTitle>
-                <CardDescription>Common operations</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { icon: GitMerge, label: 'New Reconciliation', gradient: 'from-blue-500 to-indigo-500' },
-                  { icon: BarChart3, label: 'Analytics Report', gradient: 'from-emerald-500 to-teal-500' },
-                  { icon: Settings, label: 'System Settings', gradient: 'from-purple-500 to-indigo-500' },
-                  { icon: Shield, label: 'Audit Trail', gradient: 'from-amber-500 to-orange-500' },
-                ].map((action) => (
-                    <Button
-                        key={action.label}
-                        variant="ghost"
-                        className="w-full justify-start h-12 bg-white/30 hover:bg-white/50 group"
-                    >
-                      <div className={`p-2 rounded-lg bg-gradient-to-r ${action.gradient} text-white mr-3 group-hover:scale-110 transition-transform`}>
-                        <action.icon className="h-4 w-4" />
-                      </div>
-                      <span className="font-medium text-slate-700 group-hover:text-slate-900">
-                    {action.label}
-                  </span>
-                    </Button>
-                ))}
-              </CardContent>
-            </Card>
+            {/*<Card className="bg-white/60 backdrop-blur-sm border-white/20">*/}
+            {/*  <CardHeader>*/}
+            {/*    <CardTitle className="text-slate-800">Quick Actions</CardTitle>*/}
+            {/*    <CardDescription>Common operations</CardDescription>*/}
+            {/*  </CardHeader>*/}
+            {/*  <CardContent className="space-y-3">*/}
+            {/*    {[*/}
+            {/*      { icon: GitMerge, label: 'New Reconciliation', gradient: 'from-blue-500 to-indigo-500' },*/}
+            {/*      { icon: BarChart3, label: 'Analytics Report', gradient: 'from-emerald-500 to-teal-500' },*/}
+            {/*      { icon: Settings, label: 'System Settings', gradient: 'from-purple-500 to-indigo-500' },*/}
+            {/*      { icon: Shield, label: 'Audit Trail', gradient: 'from-amber-500 to-orange-500' },*/}
+            {/*    ].map((action) => (*/}
+            {/*        <Button*/}
+            {/*            key={action.label}*/}
+            {/*            variant="ghost"*/}
+            {/*            className="w-full justify-start h-12 bg-white/30 hover:bg-white/50 group"*/}
+            {/*        >*/}
+            {/*          <div className={`p-2 rounded-lg bg-gradient-to-r ${action.gradient} text-white mr-3 group-hover:scale-110 transition-transform`}>*/}
+            {/*            <action.icon className="h-4 w-4" />*/}
+            {/*          </div>*/}
+            {/*          <span className="font-medium text-slate-700 group-hover:text-slate-900">*/}
+            {/*        {action.label}*/}
+            {/*      </span>*/}
+            {/*        </Button>*/}
+            {/*    ))}*/}
+            {/*  </CardContent>*/}
+            {/*</Card>*/}
           </div>
         </div>
       </div>

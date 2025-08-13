@@ -91,13 +91,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 )}
                 aria-label="Main content"
             >
-                <div className="p-8">
+                <div className="">
                     {/* Content wrapper with glassmorphic background */}
                     <div className="relative">
                         {/* Subtle gradient overlay for content area */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/60 to-slate-50/60 dark:from-slate-800/60 dark:to-slate-900/60 rounded-3xl backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-900/5 dark:shadow-slate-900/20" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/60 to-slate-50/60 dark:from-slate-800/60 dark:to-slate-900/60 rounded-2xl backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/60 shadow-xl shadow-slate-900/5 dark:shadow-slate-900/20" />
                         {/* Actual content */}
-                        <div className="relative p-8 rounded-3xl">
+                        <div className="relative  rounded-3xl">
                             {children}
                         </div>
                     </div>

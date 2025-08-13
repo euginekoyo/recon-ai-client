@@ -447,14 +447,14 @@ const ReconciliationUpload: React.FC = () => {
     return (
         <div className={`relative transition-all duration-300 ${isActive ? 'scale-105' : ''}`}>
           <Card className={`
-          border-none bg-white shadow-lg rounded-xl overflow-hidden
+          border-none bg-white shadow-md rounded-lg overflow-hidden
           ${isActive ? 'ring-2 ring-indigo-400 bg-indigo-50/50' : hasFile ? 'ring-2 ring-teal-400' : 'hover:ring-2 hover:ring-indigo-200'}
           transition-all duration-300
         `}>
-            <CardContent className="p-6">
-              <div className="mb-6">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Target className="h-4 w-4 text-indigo-600" />
+            <CardContent className="p-4">
+              <div className="mb-4">
+                <label className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1">
+                  <Target className="h-3 w-3 text-indigo-600" />
                   Select Template
                 </label>
                 <Select
@@ -462,37 +462,37 @@ const ReconciliationUpload: React.FC = () => {
                     onValueChange={(value) => (type === 'bank' ? setSelectedBankTemplate(value) : setSelectedVendorTemplate(value))}
                     disabled={isLoadingTemplates}
                 >
-                  <SelectTrigger className="h-10 rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all">
+                  <SelectTrigger className="h-8 rounded-md border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 transition-all">
                     <SelectValue placeholder={isLoadingTemplates ? 'Loading templates...' : `Select ${type} template`} />
                   </SelectTrigger>
-                  <SelectContent className="bg-white rounded-lg shadow-xl">
+                  <SelectContent className="bg-white rounded-md shadow-lg">
                     {isLoadingTemplates ? (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-gray-500">Loading templates...</p>
+                        <div className="text-center py-2">
+                          <p className="text-xs text-gray-500">Loading templates...</p>
                         </div>
                     ) : error ? (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-rose-600">Failed to load templates</p>
+                        <div className="text-center py-2">
+                          <p className="text-xs text-rose-600">Failed to load templates</p>
                         </div>
                     ) : Array.isArray(templates) && templates.length > 0 ? (
                         templates
                             .filter((t: Template) => t.type === (type === 'bank' ? 'BACKOFFICE' : 'VENDOR'))
                             .map((template: Template) => (
-                                <SelectItem key={template.id} value={template.id} className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                <SelectItem key={template.id} value={template.id} className="flex items-center gap-1 text-sm">
+                                  <div className="w-1 h-1 rounded-full bg-indigo-500"></div>
                                   {template.name}
                                 </SelectItem>
                             ))
                     ) : (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-gray-500 mb-3">No templates available</p>
+                        <div className="text-center py-2">
+                          <p className="text-xs text-gray-500 mb-1">No templates available</p>
                           <Button
-                              size="sm"
+                              size="xs"
                               variant="outline"
-                              className="border-dashed border-indigo-300 hover:bg-indigo-50"
+                              className="border-dashed border-indigo-300 hover:bg-indigo-50 text-xs"
                               onClick={() => navigate('/template')}
                           >
-                            <Plus className="h-4 w-4 mr-2" />
+                            <Plus className="h-3 w-3 mr-1" />
                             Create Template
                           </Button>
                         </div>
@@ -504,7 +504,7 @@ const ReconciliationUpload: React.FC = () => {
               {!file ? (
                   <div
                       className={`
-                  border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+                  border-2 border-dashed rounded-lg p-4 text-center cursor-pointer
                   ${isActive ? 'border-indigo-400 bg-indigo-50/50' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'}
                   transition-all duration-300
                 `}
@@ -516,26 +516,26 @@ const ReconciliationUpload: React.FC = () => {
                       onDragLeave={() => setDragActive(null)}
                       onClick={() => document.getElementById(`file-upload-${type}`)?.click()}
                   >
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       <div className={`
-                    inline-flex p-4 rounded-xl ${isActive ? 'bg-indigo-500' : 'bg-gray-600 hover:bg-indigo-500'}
+                    inline-flex p-2 rounded-lg ${isActive ? 'bg-indigo-500' : 'bg-gray-600 hover:bg-indigo-500'}
                     transition-all duration-300
                   `}>
-                        <Icon className="h-8 w-8 text-white" />
+                        <Icon className="h-5 w-5 text-white" />
                       </div>
-                      <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
-                      <p className="text-gray-600 text-sm">{description}</p>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full font-medium">
-                        <Upload className="h-4 w-4" />
+                      <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+                      <p className="text-gray-600 text-xs">{description}</p>
+                      <div className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-medium text-xs">
+                        <Upload className="h-3 w-3" />
                         {isActive ? 'Drop your file here' : 'Click or drag & drop'}
                       </div>
-                      <div className="flex justify-center gap-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1 px-3 py-1 bg-teal-50 rounded-full">
-                      <FileSpreadsheet className="h-3 w-3 text-teal-600" />
+                      <div className="flex justify-center gap-2 text-xs text-gray-500">
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-teal-50 rounded-full">
+                      <FileSpreadsheet className="h-2 w-2 text-teal-600" />
                       CSV/Excel
                     </span>
-                        <span className="flex items-center gap-1 px-3 py-1 bg-rose-50 rounded-full">
-                      <FileText className="h-3 w-3 text-rose-600" />
+                        <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-50 rounded-full">
+                      <FileText className="h-2 w-2 text-rose-600" />
                       PDF
                     </span>
                       </div>
@@ -549,47 +549,47 @@ const ReconciliationUpload: React.FC = () => {
                     />
                   </div>
               ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between p-4 bg-gray-50 rounded-xl border border-teal-100">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${getFileTypeInfo(file.file).color}`}>
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border border-teal-100">
+                      <div className="flex items-start gap-2">
+                        <div className={`p-1.5 rounded-md ${getFileTypeInfo(file.file).color}`}>
                           {file.status === 'error' ? (
-                              <AlertCircle className="h-5 w-5 text-white" />
+                              <AlertCircle className="h-4 w-4 text-white" />
                           ) : (
-                              <CheckCircle className="h-5 w-5 text-white" />
+                              <CheckCircle className="h-4 w-4 text-white" />
                           )}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-gray-800">{file.file.name}</p>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <p className="font-semibold text-gray-800 text-sm">{file.file.name}</p>
                             {file.preview && (
-                                <Badge className={`${getFileTypeInfo(file.file).color} text-white`}>{file.preview.fileType}</Badge>
+                                <Badge className={`${getFileTypeInfo(file.file).color} text-white text-xs`}>{file.preview.fileType}</Badge>
                             )}
                           </div>
                           <p className="text-xs text-gray-500">Uploaded {file.uploadTime.toLocaleTimeString()}</p>
                           {file.preview && file.status === 'validated' && (
-                              <div className="grid grid-cols-3 gap-3 mt-3">
-                                <div className="p-3 bg-white rounded-lg shadow-sm text-center">
-                                  <p className="text-lg font-semibold text-gray-800">{file.preview.totalRecords.toLocaleString()}</p>
+                              <div className="grid grid-cols-3 gap-2 mt-2">
+                                <div className="p-2 bg-white rounded-md shadow-sm text-center">
+                                  <p className="text-base font-semibold text-gray-800">{file.preview.totalRecords.toLocaleString()}</p>
                                   <p className="text-xs text-gray-500">Records</p>
                                 </div>
-                                <div className="p-3 bg-white rounded-lg shadow-sm text-center">
-                                  <p className="text-lg font-semibold text-gray-800">{file.preview.fileSize}</p>
+                                <div className="p-2 bg-white rounded-md shadow-sm text-center">
+                                  <p className="text-base font-semibold text-gray-800">{file.preview.fileSize}</p>
                                   <p className="text-xs text-gray-500">Size</p>
                                 </div>
-                                <div className="p-3 bg-white rounded-lg shadow-sm text-center">
+                                <div className="p-2 bg-white rounded-md shadow-sm text-center">
                                   <p className="text-xs font-semibold text-gray-800">{file.preview.dateRange}</p>
                                   <p className="text-xs text-gray-500">Date Range</p>
                                 </div>
                               </div>
                           )}
                           {file.status === 'uploaded' && file.preview && (
-                              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                              <div className="mt-2 p-2 bg-gray-50 rounded-md">
                                 <p className="text-xs text-gray-600">File will be processed server-side.</p>
                               </div>
                           )}
                           {file.status === 'error' && file.errorMessage && (
-                              <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-200">
+                              <div className="mt-2 p-2 bg-rose-50 rounded-md border border-rose-200">
                                 <p className="text-xs text-rose-600">{file.errorMessage}</p>
                               </div>
                           )}
@@ -602,7 +602,7 @@ const ReconciliationUpload: React.FC = () => {
                           className="text-gray-400 hover:text-rose-500 hover:bg-rose-50"
                           disabled={isValidating || isUploading}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -614,27 +614,27 @@ const ReconciliationUpload: React.FC = () => {
   };
 
   return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="text-center space-y-3 animate-fade-in">
-            <h1 className="text-4xl font-bold text-gray-800">Reconciliation Upload</h1>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-5xl mx-auto space-y-4">
+          <div className="text-center space-y-2 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800">Reconciliation Upload</h1>
+            <p className="text-gray-600 text-base max-w-xl mx-auto">
               Upload bank statements and vendor reports to reconcile transactions effortlessly with our AI-powered platform.
             </p>
           </div>
 
           {(isValidating || isUploading) && (
-              <Card className="border-none bg-white shadow-lg rounded-xl animate-fade-in">
-                <CardContent className="p-6 flex items-center justify-center gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                  <span className="text-gray-700 font-medium">
+              <Card className="border-none bg-white shadow-md rounded-lg animate-fade-in">
+                <CardContent className="p-4 flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                  <span className="text-gray-700 font-medium text-sm">
                 {isValidating ? 'Validating file...' :
                     isUploading ? ['Uploading files...', 'Processing data...', 'Creating batch...', 'Finalizing...'][processingStep] : ''}
               </span>
                   {isUploading && (
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
                         <div
-                            className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+                            className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${(processingStep / 4) * 100}%` }}
                         ></div>
                       </div>
@@ -644,18 +644,18 @@ const ReconciliationUpload: React.FC = () => {
           )}
 
           {uploadError && (
-              <Card className="border-none bg-rose-50 shadow-lg rounded-xl animate-fade-in">
-                <CardContent className="p-6 flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5 text-rose-600" />
+              <Card className="border-none bg-rose-50 shadow-md rounded-lg animate-fade-in">
+                <CardContent className="p-4 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600" />
                   <div>
-                    <p className="font-semibold text-rose-800">Error</p>
-                    <p className="text-rose-600 text-sm">{uploadError}</p>
+                    <p className="font-semibold text-rose-800 text-sm">Error</p>
+                    <p className="text-rose-600 text-xs">{uploadError}</p>
                   </div>
                 </CardContent>
               </Card>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <FileUploadZone
                 type="bank"
                 file={bankFile}
@@ -673,55 +673,55 @@ const ReconciliationUpload: React.FC = () => {
           </div>
 
           {bankFile && vendorFile && !batchDetails && (
-              <Card className="border-none bg-white shadow-lg rounded-xl animate-fade-in">
-                <CardContent className="p-6 flex flex-col lg:flex-row items-center justify-between gap-6">
-                  <div className="space-y-3 text-center lg:text-left">
-                    <div className="flex items-center gap-3 justify-center lg:justify-start">
-                      <GitMerge className="h-6 w-6 text-teal-600" />
-                      <h3 className="text-xl font-semibold text-gray-800">Ready to Reconcile</h3>
+              <Card className="border-none bg-white shadow-md rounded-lg animate-fade-in">
+                <CardContent className="p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
+                  <div className="space-y-2 text-center lg:text-left">
+                    <div className="flex items-center gap-2 justify-center lg:justify-start">
+                      <GitMerge className="h-4 w-4 text-teal-600" />
+                      <h3 className="text-lg font-semibold text-gray-800">Ready to Reconcile</h3>
                     </div>
-                    <p className="text-gray-600 text-sm max-w-xl">
+                    <p className="text-gray-600 text-xs max-w-md mx-auto lg:mx-0">
                       Files uploaded successfully. Start the AI-powered reconciliation to match transactions.
                     </p>
-                    <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
+                    <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
                       {bankFile.preview && (
-                          <span className="flex items-center gap-2 px-3 py-1 bg-teal-50 rounded-full text-sm text-teal-700">
-                      <Building2 className="h-4 w-4" />
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-teal-50 rounded-full text-xs text-teal-700">
+                      <Building2 className="h-3 w-3" />
                             {bankFile.preview.totalRecords.toLocaleString()} bank records
                     </span>
                       )}
                       {vendorFile.preview && (
-                          <span className="flex items-center gap-2 px-3 py-1 bg-teal-50 rounded-full text-sm text-teal-700">
-                      <Users className="h-4 w-4" />
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-teal-50 rounded-full text-xs text-teal-700">
+                      <Users className="h-3 w-3" />
                             {vendorFile.preview.totalRecords.toLocaleString()} vendor records
                     </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <Button
                         variant="outline"
-                        size="lg"
+                        size="sm"
                         onClick={resetAll}
                         className="border-gray-300 hover:bg-gray-100"
                     >
-                      <RotateCcw className="h-4 w-4 mr-2" />
+                      <RotateCcw className="h-3 w-3 mr-1" />
                       Reset
                     </Button>
                     <Button
                         onClick={startReconciliation}
-                        size="lg"
+                        size="sm"
                         disabled={isUploading || isValidating || !selectedBankTemplate || !selectedVendorTemplate || (bankFile?.status !== 'validated' && bankFile?.status !== 'uploaded') || (vendorFile?.status !== 'validated' && vendorFile?.status !== 'uploaded')}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
                       {isUploading ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                             Processing...
                           </>
                       ) : (
                           <>
-                            <Play className="h-4 w-4 mr-2" />
+                            <Play className="h-3 w-3 mr-1" />
                             Start Reconciliation
                           </>
                       )}
@@ -732,31 +732,31 @@ const ReconciliationUpload: React.FC = () => {
           )}
 
           {batchDetails && (
-              <Card className="border-none bg-white shadow-lg rounded-xl animate-fade-in">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <GitMerge className="h-6 w-6 text-indigo-600" />
+              <Card className="border-none bg-white shadow-md rounded-lg animate-fade-in">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <GitMerge className="h-4 w-4 text-indigo-600" />
                     <div>
-                      <CardTitle className="text-xl font-semibold text-gray-800">
+                      <CardTitle className="text-lg font-semibold text-gray-800">
                         Reconciliation Batch
-                        <Badge className={`ml-2 ${batchDetails.status === 'completed' ? 'bg-teal-500' : 'bg-indigo-500'} text-white`}>
+                        <Badge className={`ml-2 ${batchDetails.status === 'completed' ? 'bg-teal-500' : 'bg-indigo-500'} text-white text-xs`}>
                           {batchDetails.status}
                         </Badge>
                       </CardTitle>
-                      <CardDescription className="text-gray-600">
+                      <CardDescription className="text-gray-600 text-sm">
                         Batch ID: <span className="font-mono text-indigo-600">{batchDetails.batchId}</span>
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Clock className="h-4 w-4 text-indigo-600" />
-                        <span className="text-sm text-gray-600">Created</span>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 bg-gray-50 rounded-md">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Clock className="h-3 w-3 text-indigo-600" />
+                        <span className="text-xs text-gray-600">Created</span>
                       </div>
-                      <p className="text-lg font-semibold text-gray-800">
+                      <p className="text-base font-semibold text-gray-800">
                         {batchDetails.createdAt.toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -766,56 +766,56 @@ const ReconciliationUpload: React.FC = () => {
                         })}
                       </p>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Building2 className="h-4 w-4 text-teal-600" />
-                        <span className="text-sm text-gray-600">Bank Records</span>
+                    <div className="p-3 bg-gray-50 rounded-md">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Building2 className="h-3 w-3 text-teal-600" />
+                        <span className="text-xs text-gray-600">Bank Records</span>
                       </div>
-                      <p className="text-lg font-semibold text-gray-800">
+                      <p className="text-base font-semibold text-gray-800">
                         {batchDetails.bankFile.preview?.totalRecords.toLocaleString() || 'N/A'}
                       </p>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Users className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm text-gray-600">Vendor Records</span>
+                    <div className="p-3 bg-gray-50 rounded-md">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Users className="h-3 w-3 text-blue-600" />
+                        <span className="text-xs text-gray-600">Vendor Records</span>
                       </div>
-                      <p className="text-lg font-semibold text-gray-800">
+                      <p className="text-base font-semibold text-gray-800">
                         {batchDetails.vendorFile.preview?.totalRecords.toLocaleString() || 'N/A'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div className="flex items-center gap-1">
                       {batchDetails.status === 'failed' ? (
                           <>
-                            <AlertCircle className="h-5 w-5 text-rose-600" />
-                            <span className="text-sm text-rose-600">{batchDetails.failureReason}</span>
+                            <AlertCircle className="h-4 w-4 text-rose-600" />
+                            <span className="text-xs text-rose-600">{batchDetails.failureReason}</span>
                           </>
                       ) : (
                           <>
-                            <CheckCircle className="h-5 w-5 text-teal-600" />
-                            <span className="text-sm text-teal-600">Batch created successfully</span>
+                            <CheckCircle className="h-4 w-4 text-teal-600" />
+                            <span className="text-xs text-teal-600">Batch created successfully</span>
                           </>
                       )}
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
                       <Button
                           variant="outline"
-                          size="lg"
+                          size="sm"
                           onClick={resetAll}
                           className="border-gray-300 hover:bg-gray-100"
                       >
-                        <RotateCcw className="h-4 w-4 mr-2" />
+                        <RotateCcw className="h-3 w-3 mr-1" />
                         New Batch
                       </Button>
                       <Button
-                          size="lg"
+                          size="sm"
                           disabled={batchDetails.status === 'failed'}
                           onClick={() => navigate(`/reconciliation/results/${batchDetails.batchId}`)}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white"
                       >
-                        <Eye className="h-4 w-4 mr-2" />
+                        <Eye className="h-3 w-3 mr-1" />
                         View Results
                       </Button>
                     </div>

@@ -139,18 +139,18 @@ export const TopBar = ({ sidebarCollapsed, onAuthChange, onOpenChangePassword, o
           {/* Minimal Actions */}
           <div className="flex items-center gap-1">
             {/* Notifications */}
-            <div className="relative">
-              <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <Bell className="h-5 w-5 text-gray-600" />
-              </Button>
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white">
-                <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75" />
-              </div>
-            </div>
+            {/*<div className="relative">*/}
+            {/*  <Button*/}
+            {/*      variant="ghost"*/}
+            {/*      size="sm"*/}
+            {/*      className="h-8 w-8 rounded-md hover:bg-gray-100 transition-colors"*/}
+            {/*  >*/}
+            {/*    <Bell className="h-5 w-5 text-gray-600" />*/}
+            {/*  </Button>*/}
+            {/*  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white">*/}
+            {/*    <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75" />*/}
+            {/*  </div>*/}
+            {/*</div>*/}
 
             {/* User Menu */}
             <DropdownMenu>

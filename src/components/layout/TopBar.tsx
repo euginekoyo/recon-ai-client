@@ -133,7 +133,7 @@ export const TopBar = ({ sidebarCollapsed, onAuthChange, onOpenChangePassword, o
 
           {/* Centered Title */}
           <div className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-gray-900">
-            AuditFusion
+            MatchFusion
           </div>
 
           {/* Minimal Actions */}

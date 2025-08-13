@@ -63,7 +63,7 @@ const SignIn = () => {
                 <img src={bankLogo} alt="Bank Logo" className="h-16 w-auto" />
               </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-2">
-                AuditFusion
+                MatchFusion
               </h1>
               <p className="text-slate-600 dark:text-slate-400 text-lg">
                 Welcome back to your financial dashboard

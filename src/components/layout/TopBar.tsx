@@ -20,7 +20,7 @@ import {
   isAdmin,
   isModerator
 } from '@/lib/auth';
-import bankLogo from '@/components/layout/Images/bank-logo.png';
+import bankLogo from '@/components/layout/images/bank-logo.png';
 
 interface TopBarProps {
   sidebarCollapsed: boolean;

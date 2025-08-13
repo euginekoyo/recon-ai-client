@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast.ts';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils.ts';
 import { useLoginMutation } from '@/store/redux/AuthApi.ts';
-import bankLogo from '@/components/layout/Images/bank-logo.png';
+import bankLogo from '@/components/layout/images/bank-logo.png';
 
 const SignIn = () => {
   const [username, setUsername] = useState('');

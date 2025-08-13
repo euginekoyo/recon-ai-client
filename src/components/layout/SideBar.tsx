@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { hasPermission } from '@/lib/auth';
-import istlLogo from '@/components/layout/Images/istl-logo.png';
+import istlLogo from '@/components/layout/images/ISTL-logo.png';
 
 interface SideBarProps {
 }

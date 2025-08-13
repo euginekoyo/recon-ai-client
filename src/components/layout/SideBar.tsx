@@ -2,22 +2,17 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  CreditCard,
-  GitMerge,
   Shield,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-  FileText, // Added for Reconciled Transactions
+  Zap,
+  FileText,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { hasPermission } from '@/lib/auth';
+import istlLogo from '@/components/layout/Images/istl-logo.png';
 
 interface SideBarProps {
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
 }
 
 const navigationItems = [
@@ -37,10 +32,18 @@ const navigationItems = [
     gradient: 'from-rose-500 to-pink-500',
     hoverGlow: 'hover:shadow-rose-500/25'
   },
+  // {
+  //   name: 'Transactions',
+  //   href: '/transactions',
+  //   icon: CreditCard,
+  //   permission: 'VIEW_TRANSACTIONS',
+  //   gradient: 'from-emerald-500 to-teal-500',
+  //   hoverGlow: 'hover:shadow-emerald-500/25'
+  // },
   {
     name: 'Real Time Reconciliation',
     href: '/reconciliation',
-    icon: GitMerge,
+    icon: Zap,
     permission: 'VIEW_RECONCILIATION',
     gradient: 'from-violet-500 to-purple-500',
     hoverGlow: 'hover:shadow-violet-500/25'
@@ -48,7 +51,7 @@ const navigationItems = [
   {
     name: 'Reconciliation Templates',
     href: '/template-creator',
-    icon: GitMerge,
+    icon: FileText,
     permission: 'VIEW_RECONCILIATION',
     gradient: 'from-indigo-500 to-blue-500',
     hoverGlow: 'hover:shadow-indigo-500/25'
@@ -56,14 +59,24 @@ const navigationItems = [
   {
     name: 'Reconciled Transactions',
     href: '/reconciled',
-    icon: FileText, // Changed from GitMerge to FileText
+    icon: CheckSquare,
     permission: 'VIEW_RECONCILED_TRANSACTIONS',
-    gradient: 'from-teal-500 to-emerald-500', // Updated gradient for distinction
-    hoverGlow: 'hover:shadow-teal-500/25' // Updated hover glow
+    gradient: 'from-indigo-500 to-blue-500',
+    hoverGlow: 'hover:shadow-indigo-500/25'
   },
+
+
+  // {
+  //   name: 'Settings',
+  //   href: '/settings',
+  //   icon: Settings,
+  //   permission: 'VIEW_SETTINGS',
+  //   gradient: 'from-slate-500 to-gray-500',
+  //   hoverGlow: 'hover:shadow-slate-500/25'
+  // },
 ];
 
-export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
+export const SideBar = ({}: SideBarProps) => {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   return (
@@ -72,42 +85,22 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
             'fixed left-0 top-16 h-[calc(100vh-4rem)] z-30 transition-all duration-500 ease-out overflow-hidden',
             'bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl backdrop-saturate-150',
             'border-r border-slate-200/60 dark:border-slate-700/60 shadow-2xl shadow-slate-900/10 dark:shadow-slate-900/50',
-            collapsed ? 'w-20' : 'w-72'
+            'w-72'
         )}>
           <div className="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-white/30 to-slate-100/50 dark:from-slate-800/50 dark:via-slate-900/30 dark:to-slate-800/50" />
           <div className="absolute top-10 -left-4 w-32 h-32 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse" />
           <div className="absolute bottom-20 -right-4 w-32 h-32 bg-violet-400/10 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse animation-delay-2000" />
 
-          <div className="relative flex items-center justify-between p-4 border-b border-slate-200/60 dark:border-slate-700/60">
-            {!collapsed && (
-                <div className="flex items-center gap-3 animate-fade-in">
-                  <div className="flex flex-col">
-                <span className="text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+          <div className="relative flex items-center p-4 border-b border-slate-200/60 dark:border-slate-700/60">
+            <div className="flex items-center gap-3 animate-fade-in">
+
+              <div className="flex flex-col">
+                <span className="text-base font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
                   Finance Dashboard
                 </span>
-                  </div>
-                </div>
-            )}
-            <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCollapsed(!collapsed)}
-                className={cn(
-                    "h-10 w-10 rounded-2xl transition-all duration-300 hover:scale-110 group",
-                    "bg-slate-100/60 dark:bg-slate-800/60 backdrop-blur-sm",
-                    "border border-slate-200/60 dark:border-slate-700/60",
-                    "hover:bg-white dark:hover:bg-slate-700",
-                    "text-slate-600 dark:text-slate-300",
-                    "shadow-lg shadow-slate-200/50 dark:shadow-slate-800/50",
-                    collapsed && "mx-auto"
-                )}
-            >
-              {collapsed ? (
-                  <ChevronRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-              ) : (
-                  <ChevronLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
-              )}
-            </Button>
+
+              </div>
+            </div>
           </div>
 
           <nav className="relative p-4 space-y-2 overflow-y-auto scrollbar-hide">
@@ -141,15 +134,13 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
                                           `hover:${item.gradient}`,
                                           item.hoverGlow
                                       ),
-                                  collapsed ? 'justify-center px-10' : '',
                                   `animate-slide-in-left animation-delay-${index * 100}`
                               )
                           }
-                          title={collapsed ? item.name : undefined}
                       >
                         <div className={cn(
                             "relative flex items-center justify-center transition-all duration-300",
-                            isHovered && !collapsed && "animate-bounce-subtle"
+                            isHovered && "animate-bounce-subtle"
                         )}>
                           <Icon className={cn(
                               "h-5 w-5 flex-shrink-0 transition-all duration-300",
@@ -162,22 +153,17 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
                               )} />
                           )}
                         </div>
-                        {!collapsed && (
-                            <span className={cn(
-                                "truncate transition-all duration-300 transform",
-                                isHovered && "translate-x-1"
-                            )}>
-                      {item.name}
-                    </span>
-                        )}
+                        <span className={cn(
+                            "truncate transition-all duration-300 transform",
+                            isHovered && "translate-x-1"
+                        )}>
+                          {item.name}
+                        </span>
                         <NavLink to={item.href}>
                           {({ isActive }) => (
                               <>
-                                {isActive && !collapsed && (
+                                {isActive && (
                                     <div className="absolute right-2 w-2 h-2 bg-white rounded-full animate-pulse" />
-                                )}
-                                {isActive && collapsed && (
-                                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-full animate-pulse" />
                                 )}
                               </>
                           )}
@@ -193,31 +179,17 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
           </nav>
 
           <div className={cn(
-              "absolute bottom-0 left-0 right-0 p-4 transition-all duration-500 transform",
-              collapsed ? "opacity-0 translate-y-4 pointer-events-none" : "opacity-100 translate-y-0"
+              "absolute bottom-0 left-0 right-0 p-6"
           )}>
-            <div className="relative p-4 bg-gradient-to-br from-slate-100/80 to-white/80 dark:from-slate-800/80 dark:to-slate-900/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm shadow-lg">
-              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500 rounded-t-2xl" />
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    FinanceSync Pro
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    v2.1.0 • Build 4521
-                  </p>
-                </div>
-              </div>
+            <hr className="my-4 border-slate-200 dark:border-slate-700" />
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                Engineered by ISTL
+              </span>
+              <img src={istlLogo} alt="ISTL Logo" className="h-8 w-auto" />
             </div>
           </div>
         </aside>
-
-        {!collapsed && (
-            <div
-                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 lg:hidden animate-fade-in"
-                onClick={() => setCollapsed(true)}
-            />
-        )}
 
         <style>{`
         @keyframes fade-in {

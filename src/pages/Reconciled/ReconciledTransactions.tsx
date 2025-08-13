@@ -1,8 +1,9 @@
-import React, {useState, useEffect, useMemo, useCallback} from 'react';
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Badge} from '@/components/ui/badge';
-import {Button} from '@/components/ui/button';
-import {Input} from '@/components/ui/input';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
@@ -36,9 +37,10 @@ import {
     useGetRecordsQuery,
     useRetryBatchMutation,
     useResolveRecordMutation,
-} from '@/store/redux/reconciliationApi.ts';
-import {useNavigate, useParams} from 'react-router-dom';
-import {debounce} from 'lodash';
+} from '@/store/redux/reconciliationApi';
+import { useNavigate, useParams } from 'react-router-dom';
+import { debounce } from 'lodash';
+import ReportDownloader from '@/pages/Reconciled/ReportDownloader';
 
 interface BatchRecord {
     id: string;
@@ -109,10 +111,10 @@ interface ReconciliationBatch {
 }
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-    state = {hasError: false};
+    state = { hasError: false };
 
     static getDerivedStateFromError() {
-        return {hasError: true};
+        return { hasError: true };
     }
 
     render() {
@@ -360,7 +362,7 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
     ].join(','));
 
     const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -373,7 +375,7 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
 
 const ReconciledTransactions: React.FC = () => {
     const navigate = useNavigate();
-    const {batchId} = useParams<{ batchId?: string }>();
+    const { batchId } = useParams<{ batchId?: string }>();
     const [selectedView, setSelectedView] = useState<'list' | 'details'>('list');
     const [selectedBatch, setSelectedBatch] = useState<ReconciliationBatch | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -383,7 +385,7 @@ const ReconciledTransactions: React.FC = () => {
     const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
     const [showRawData, setShowRawData] = useState(false);
 
-    const {data: batchesData, isLoading: isBatchesLoading, error: batchesError} = useGetBatchesQuery();
+    const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();
     const batches = useMemo(() => batchesData ? batchesData.map(mapReconBatchToReconciliationBatch) : [], [batchesData]);
 
     const numericBatchId = useMemo(() => batchId ? parseInt(batchId.replace('RB-', '')) : undefined, [batchId]);
@@ -407,11 +409,11 @@ const ReconciledTransactions: React.FC = () => {
             status: recordStatusFilter !== 'all' ? recordStatusFilter.toUpperCase().replace('PARTIAL', 'PARTIAL_MATCH') : undefined,
             resolved: undefined,
         },
-        {skip: !numericBatchId},
+        { skip: !numericBatchId },
     );
 
-    const [retryBatch, {isLoading: isRetrying}] = useRetryBatchMutation();
-    const [resolveRecord, {isLoading: isResolving}] = useResolveRecordMutation();
+    const [retryBatch, { isLoading: isRetrying }] = useRetryBatchMutation();
+    const [resolveRecord, { isLoading: isResolving }] = useResolveRecordMutation();
 
     const selectedBatchWithRecords = useMemo(() => {
         if (!batchData) return undefined;
@@ -440,7 +442,7 @@ const ReconciledTransactions: React.FC = () => {
             } else if (!batch) {
                 setSelectedView('list');
                 setSelectedBatch(null);
-                navigate('/reconciled', {replace: true});
+                navigate('/reconciled', { replace: true });
             }
         } else if (selectedView !== 'list' || selectedBatch !== null) {
             setSelectedView('list');
@@ -452,20 +454,20 @@ const ReconciledTransactions: React.FC = () => {
         if (selectedView === 'list' && lastSelectedBatchId) {
             const element = document.getElementById(`batch-row-${lastSelectedBatchId}`);
             if (element) {
-                element.scrollIntoView({behavior: 'smooth', block: 'center'});
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
     }, [selectedView, lastSelectedBatchId]);
 
     const getStatusBadge = useCallback((status: string) => {
         const configs = {
-            done: {color: 'bg-teal-500 text-white', icon: CheckCircle},
-            running: {color: 'bg-indigo-500 text-white', icon: Clock},
-            pending: {color: 'bg-amber-500 text-white', icon: Clock},
-            failed: {color: 'bg-rose-500 text-white', icon: XCircle},
-            matched: {color: 'bg-teal-500 text-white', icon: CheckCircle},
-            unmatched: {color: 'bg-rose-500 text-white', icon: XCircle},
-            partial: {color: 'bg-amber-500 text-white', icon: AlertTriangle},
+            done: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+            running: { color: 'bg-indigo-500 text-white', icon: Clock },
+            pending: { color: 'bg-amber-500 text-white', icon: Clock },
+            failed: { color: 'bg-rose-500 text-white', icon: XCircle },
+            matched: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+            unmatched: { color: 'bg-rose-500 text-white', icon: XCircle },
+            partial: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
         };
 
         const config = configs[status.toLowerCase()] || {
@@ -476,7 +478,7 @@ const ReconciledTransactions: React.FC = () => {
 
         return (
             <Badge className={`${config.color} font-medium px-3 py-1 rounded-full flex items-center gap-1`}>
-                <Icon className="w-3 h-3"/>
+                <Icon className="w-3 h-3" />
                 {status.charAt(0).toUpperCase() + status.slice(1)}
             </Badge>
         );
@@ -579,9 +581,9 @@ const ReconciledTransactions: React.FC = () => {
                         {Object.entries(data).map(([key, value]) => (
                             <tr key={key} className="border-b border-gray-100 last:border-b-0">
                                 <td className="px-4 py-2 text-sm">
-                                        <span className={getFieldErrorStatus(key, selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                            {key}
-                                        </span>
+                                    <span className={getFieldErrorStatus(key, selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                        {key}
+                                    </span>
                                 </td>
                                 <td className="px-4 py-2 text-sm text-gray-800">
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
@@ -599,7 +601,7 @@ const ReconciledTransactions: React.FC = () => {
         <div className="space-y-6 animate-fade-in">
             <div className="text-center space-y-3">
                 <div className="inline-flex items-center justify-center p-3 rounded-full bg-indigo-100">
-                    <GitMerge className="w-8 h-8 text-indigo-600"/>
+                    <GitMerge className="w-8 h-8 text-indigo-600" />
                 </div>
                 <h1 className="text-4xl font-bold text-gray-800">Reconciliation Batches</h1>
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
@@ -610,7 +612,7 @@ const ReconciledTransactions: React.FC = () => {
             {isBatchesLoading && (
                 <Card className="border-none bg-white shadow-lg rounded-xl">
                     <CardContent className="p-6 flex items-center justify-center gap-3">
-                        <Loader2 className="h-6 w-6 animate-spin text-indigo-600"/>
+                        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
                         <span className="text-gray-700 font-medium">Loading batches...</span>
                     </CardContent>
                 </Card>
@@ -619,7 +621,7 @@ const ReconciledTransactions: React.FC = () => {
             {batchesError && (
                 <Card className="border-none bg-rose-50 shadow-lg rounded-xl">
                     <CardContent className="p-6 flex items-center gap-3">
-                        <AlertTriangle className="h-6 w-6 text-rose-600"/>
+                        <AlertTriangle className="h-6 w-6 text-rose-600" />
                         <span className="text-rose-700 font-medium">Failed to load batches. Please try again.</span>
                     </CardContent>
                 </Card>
@@ -637,7 +639,7 @@ const ReconciledTransactions: React.FC = () => {
                         <div className="flex flex-col lg:flex-row gap-4 mb-6">
                             <div className="relative flex-1">
                                 <Search
-                                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5"/>
+                                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                                 <Input
                                     placeholder="Search batch ID, file names..."
                                     value={searchTerm}
@@ -658,7 +660,7 @@ const ReconciledTransactions: React.FC = () => {
                                     <option value="failed">Failed</option>
                                 </select>
                                 <Button className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">
-                                    <Download className="h-4 w-4 mr-2"/>
+                                    <Download className="h-4 w-4 mr-2" />
                                     Export All
                                 </Button>
                             </div>
@@ -699,15 +701,14 @@ const ReconciledTransactions: React.FC = () => {
                                                 </div>
                                             </div>
                                         </td>
-
                                         <td className="px-6 py-4">
                                             <div className="space-y-1 text-xs text-gray-600">
                                                 <div className="flex items-center gap-1">
-                                                    <Building2 className="w-3 h-3 text-teal-600"/>
+                                                    <Building2 className="w-3 h-3 text-teal-600" />
                                                     {batch.bankFileName}
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <Users className="w-3 h-3 text-blue-600"/>
+                                                    <Users className="w-3 h-3 text-blue-600" />
                                                     {batch.vendorFileName}
                                                 </div>
                                             </div>
@@ -725,7 +726,7 @@ const ReconciledTransactions: React.FC = () => {
                                                     }}
                                                     className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 text-gray-700"
                                                 >
-                                                    <Eye className="w-3 h-3 mr-1"/>
+                                                    <Eye className="w-3 h-3 mr-1" />
                                                     View Details
                                                 </Button>
                                                 {batch.status === 'failed' && (
@@ -737,9 +738,9 @@ const ReconciledTransactions: React.FC = () => {
                                                         className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700"
                                                     >
                                                         {isRetrying ? (
-                                                            <Loader2 className="w-3 h-3 mr-1 animate-spin"/>
+                                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                                                         ) : (
-                                                            <Repeat className="w-3 h-3 mr-1"/>
+                                                            <Repeat className="w-3 h-3 mr-1" />
                                                         )}
                                                         Retry
                                                     </Button>
@@ -751,8 +752,7 @@ const ReconciledTransactions: React.FC = () => {
                                 </tbody>
                             </table>
                             {filteredBatches.length === 0 && (
-                                <div className="text-center py-8 text-gray-600">No batches found matching your
-                                    criteria.</div>
+                                <div className="text-center py-8 text-gray-600">No batches found matching your criteria.</div>
                             )}
                         </div>
                     </CardContent>
@@ -796,16 +796,17 @@ const ReconciledTransactions: React.FC = () => {
                             className="h-10 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-lg"
                             onClick={handleExportIssues}
                         >
-                            <Download className="h-4 w-4 mr-2"/>
+                            <Download className="h-4 w-4 mr-2" />
                             Export Issues
                         </Button>
+                        <ReportDownloader batchId={numericBatchId!.toString()} />
                     </div>
                 </div>
 
                 {(isBatchLoading || isRecordsLoading) && (
                     <Card className="border-none bg-white shadow-lg rounded-xl">
                         <CardContent className="p-6 flex items-center justify-center gap-3">
-                            <Loader2 className="h-6 w-6 animate-spin text-indigo-600"/>
+                            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
                             <span className="text-gray-700 font-medium">Loading batch details...</span>
                         </CardContent>
                     </Card>
@@ -814,10 +815,10 @@ const ReconciledTransactions: React.FC = () => {
                 {(batchError || recordsError) && (
                     <Card className="border-none bg-rose-50 shadow-lg rounded-xl">
                         <CardContent className="p-6 flex items-center gap-3">
-                            <AlertTriangle className="h-6 w-6 text-rose-600"/>
+                            <AlertTriangle className="h-6 w-6 text-rose-600" />
                             <span className="text-rose-700 font-medium">
-                    {batchError ? 'Failed to load batch details.' : 'Failed to load records.'} Please try again.
-                  </span>
+                                {batchError ? 'Failed to load batch details.' : 'Failed to load records.'} Please try again.
+                            </span>
                         </CardContent>
                     </Card>
                 )}
@@ -832,7 +833,7 @@ const ReconciledTransactions: React.FC = () => {
                                         {selectedBatchWithRecords.totalRecords.toLocaleString()}
                                     </p>
                                 </div>
-                                <FileText className="w-8 h-8 text-indigo-600"/>
+                                <FileText className="w-8 h-8 text-indigo-600" />
                             </CardContent>
                         </Card>
 
@@ -842,7 +843,7 @@ const ReconciledTransactions: React.FC = () => {
                                     <p className="text-sm text-gray-600 font-medium">Match Rate</p>
                                     <p className="text-2xl font-bold text-gray-800">{selectedBatchWithRecords.matchRate}%</p>
                                 </div>
-                                <TrendingUp className="w-8 h-8 text-teal-600"/>
+                                <TrendingUp className="w-8 h-8 text-teal-600" />
                             </CardContent>
                         </Card>
 
@@ -852,7 +853,7 @@ const ReconciledTransactions: React.FC = () => {
                                     <p className="text-sm text-gray-600 font-medium">Anomalies</p>
                                     <p className="text-2xl font-bold text-gray-800">{selectedBatchWithRecords.anomalyCount}</p>
                                 </div>
-                                <AlertTriangle className="w-8 h-8 text-amber-600"/>
+                                <AlertTriangle className="w-8 h-8 text-amber-600" />
                             </CardContent>
                         </Card>
 
@@ -864,7 +865,7 @@ const ReconciledTransactions: React.FC = () => {
                                         {selectedBatchWithRecords.processingTime || 'N/A'}
                                     </p>
                                 </div>
-                                <Clock className="w-8 h-8 text-purple-600"/>
+                                <Clock className="w-8 h-8 text-purple-600" />
                             </CardContent>
                         </Card>
                     </div>
@@ -897,8 +898,7 @@ const ReconciledTransactions: React.FC = () => {
                                 <table className="w-full">
                                     <thead>
                                     <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Transaction ID
-                                        </th>
+                                        <th className="px-6 py-4 text-left font-semibold text-gray-700">Transaction ID</th>
                                         <th className="px-6 py-4 text-left font-semibold text-gray-700">Description</th>
                                         <th className="px-6 py-4 text-left font-semibold text-gray-700">Amount</th>
                                         <th className="px-6 py-4 text-left font-semibold text-gray-700">Status</th>
@@ -931,11 +931,10 @@ const ReconciledTransactions: React.FC = () => {
                                                                         ? 'bg-amber-500'
                                                                         : 'bg-rose-500'
                                                             }`}
-                                                            style={{width: `${record.confidence * 100}%`}}
+                                                            style={{ width: `${record.confidence * 100}%` }}
                                                         ></div>
                                                     </div>
-                                                    <span
-                                                        className="text-sm text-gray-600">{Math.round(record.confidence * 100)}%</span>
+                                                    <span className="text-sm text-gray-600">{Math.round(record.confidence * 100)}%</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -960,7 +959,7 @@ const ReconciledTransactions: React.FC = () => {
                                                 <div className="flex items-center gap-2">
                                                     {record.resolved ? (
                                                         <Badge className="bg-teal-500 text-white rounded-full">
-                                                            <CheckCircle className="w-3 h-3 mr-1"/>
+                                                            <CheckCircle className="w-3 h-3 mr-1" />
                                                             Resolved
                                                         </Badge>
                                                     ) : (
@@ -975,9 +974,9 @@ const ReconciledTransactions: React.FC = () => {
                                                             disabled={isResolving}
                                                         >
                                                             {isResolving ? (
-                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin"/>
+                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                                                             ) : (
-                                                                <ThumbsUp className="w-3 h-3 mr-1"/>
+                                                                <ThumbsUp className="w-3 h-3 mr-1" />
                                                             )}
                                                             Resolve
                                                         </Button>
@@ -989,8 +988,7 @@ const ReconciledTransactions: React.FC = () => {
                                     </tbody>
                                 </table>
                                 {filteredRecords.length === 0 && (
-                                    <div className="text-center py-8 text-gray-600">No records found matching your
-                                        criteria.</div>
+                                    <div className="text-center py-8 text-gray-600">No records found matching your criteria.</div>
                                 )}
                             </div>
                         </CardContent>
@@ -1010,30 +1008,26 @@ const ReconciledTransactions: React.FC = () => {
                                     <DialogTitle className="text-lg font-semibold text-gray-800">
                                         Transaction Detail: {selectedRecord.transactionId}
                                     </DialogTitle>
-
                                 </DialogHeader>
                                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                                     {selectedRecord.batchInfo && (
                                         <div className="space-y-4">
                                             <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <GitMerge className="w-4 h-4 mr-2 text-indigo-600"/>
+                                                <GitMerge className="w-4 h-4 mr-2 text-indigo-600" />
                                                 Batch Information
                                             </h4>
                                             <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-200">
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Batch ID:</span>
-                                                    <span
-                                                        className="font-mono text-sm text-gray-800">{selectedRecord.batchInfo.id || 'N/A'}</span>
+                                                    <span className="font-mono text-sm text-gray-800">{selectedRecord.batchInfo.id || 'N/A'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Bank File:</span>
-                                                    <span
-                                                        className="text-sm text-gray-800">{selectedRecord.batchInfo.backofficeFile || 'N/A'}</span>
+                                                    <span className="text-sm text-gray-800">{selectedRecord.batchInfo.backofficeFile || 'N/A'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Vendor File:</span>
-                                                    <span
-                                                        className="text-sm text-gray-800">{selectedRecord.batchInfo.vendorFile || 'N/A'}</span>
+                                                    <span className="text-sm text-gray-800">{selectedRecord.batchInfo.vendorFile || 'N/A'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Status:</span>
@@ -1041,13 +1035,11 @@ const ReconciledTransactions: React.FC = () => {
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Created At:</span>
-                                                    <span
-                                                        className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.createdAt || new Date().toISOString())}</span>
+                                                    <span className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.createdAt || new Date().toISOString())}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-gray-600">Updated At:</span>
-                                                    <span
-                                                        className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.updatedAt || new Date().toISOString())}</span>
+                                                    <span className="text-sm text-gray-800">{formatDate(selectedRecord.batchInfo.updatedAt || new Date().toISOString())}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1056,55 +1048,46 @@ const ReconciledTransactions: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-4">
                                             <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <Building2 className="w-4 h-4 mr-2 text-teal-600"/>
+                                                <Building2 className="w-4 h-4 mr-2 text-teal-600" />
                                                 Bank Record
                                             </h4>
                                             {selectedRecord.bankRecord ? (
-                                                <div
-                                                    className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                                                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">ID:</span>
-                                                        <span
-                                                            className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.id || 'N/A'}</span>
+                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.id || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Reference:</span>
-                                                        <span
-                                                            className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.reference || 'N/A'}</span>
+                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.bankRecord.reference || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Amount:</span>
-                                                        <span
-                                                            className="font-semibold text-gray-800">{formatCurrency(selectedRecord.bankRecord.amount || 0)}</span>
+                                                        <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.bankRecord.amount || 0)}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Date:</span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.bankRecord.date || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.date || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
                                                             Description
                                                         </span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.bankRecord.description || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.description || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
                                                             Status
                                                         </span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.bankRecord.status || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.status || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Direction:</span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.bankRecord.direction || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.bankRecord.direction || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div
-                                                    className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
+                                                <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
                                                     No bank record found
                                                 </div>
                                             )}
@@ -1112,55 +1095,46 @@ const ReconciledTransactions: React.FC = () => {
 
                                         <div className="space-y-4">
                                             <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <Users className="w-4 h-4 mr-2 text-blue-600"/>
+                                                <Users className="w-4 h-4 mr-2 text-blue-600" />
                                                 System Record
                                             </h4>
                                             {selectedRecord.systemRecord ? (
-                                                <div
-                                                    className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                                                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">ID:</span>
-                                                        <span
-                                                            className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.id || 'N/A'}</span>
+                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.id || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Reference:</span>
-                                                        <span
-                                                            className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.reference || 'N/A'}</span>
+                                                        <span className="font-mono text-sm text-gray-800">{selectedRecord.systemRecord.reference || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Amount:</span>
-                                                        <span
-                                                            className="font-semibold text-gray-800">{formatCurrency(selectedRecord.systemRecord.amount || 0)}</span>
+                                                        <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.systemRecord.amount || 0)}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Date:</span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.systemRecord.date || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.date || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
                                                             Description
                                                         </span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.systemRecord.description || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.description || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
                                                             Status
                                                         </span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.systemRecord.status || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.status || 'N/A'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-gray-600">Direction:</span>
-                                                        <span
-                                                            className="text-sm text-gray-800">{selectedRecord.systemRecord.direction || 'N/A'}</span>
+                                                        <span className="text-sm text-gray-800">{selectedRecord.systemRecord.direction || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div
-                                                    className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
+                                                <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-600 border border-gray-200">
                                                     No system record found
                                                 </div>
                                             )}
@@ -1173,15 +1147,13 @@ const ReconciledTransactions: React.FC = () => {
                                         className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
                                         onClick={() => setShowRawData(!showRawData)}
                                     >
-                                        <Code className="w-4 h-4 mr-2"/>
+                                        <Code className="w-4 h-4 mr-2" />
                                         {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
                                     </Button>
 
                                     {showRawData && selectedRecord.displayData && (
                                         <div className="space-y-6">
-                                            {/*{renderDataTable(selectedRecord.displayData.backoffice?.core, 'Bank Core Data', 'backoffice')}*/}
                                             {renderDataTable(selectedRecord.displayData.backoffice?.raw, 'Bank Raw Data', 'backoffice')}
-                                            {/*{renderDataTable(selectedRecord.displayData.vendor?.core, 'Vendor Core Data', 'vendor')}*/}
                                             {renderDataTable(selectedRecord.displayData.vendor?.raw, 'Vendor Raw Data', 'vendor')}
                                         </div>
                                     )}
@@ -1189,7 +1161,7 @@ const ReconciledTransactions: React.FC = () => {
                                     {selectedRecord.aiReasoning && (
                                         <div className="space-y-4">
                                             <h4 className="font-semibold text-gray-800 flex items-center">
-                                                <AlertTriangle className="w-4 h-4 mr-2 text-purple-600"/>
+                                                <AlertTriangle className="w-4 h-4 mr-2 text-purple-600" />
                                                 AI Match Reasoning
                                             </h4>
                                             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -1217,14 +1189,13 @@ const ReconciledTransactions: React.FC = () => {
 
                                     <div className="space-y-2">
                                         <h4 className="font-semibold text-gray-800 flex items-center">
-                                            <MessageSquare className="w-4 h-4 mr-2 text-indigo-600"/>
+                                            <MessageSquare className="w-4 h-4 mr-2 text-indigo-600" />
                                             Comments ({selectedRecord.comments.length})
                                         </h4>
                                         <div className="space-y-2">
                                             {selectedRecord.comments.length > 0 ? (
                                                 selectedRecord.comments.map((comment, i) => (
-                                                    <div key={i}
-                                                         className="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 border border-gray-200">
+                                                    <div key={i} className="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 border border-gray-200">
                                                         {comment}
                                                     </div>
                                                 ))
@@ -1250,7 +1221,7 @@ const ReconciledTransactions: React.FC = () => {
                                             </Badge>
                                             {selectedRecord.resolved && (
                                                 <Badge className="bg-teal-500 text-white rounded-full">
-                                                    <CheckCircle className="w-3 h-3 mr-1"/>
+                                                    <CheckCircle className="w-3 h-3 mr-1" />
                                                     Resolved
                                                 </Badge>
                                             )}
@@ -1264,9 +1235,9 @@ const ReconciledTransactions: React.FC = () => {
                                                     disabled={isResolving}
                                                 >
                                                     {isResolving ? (
-                                                        <Loader2 className="w-3 h-3 mr-1 animate-spin"/>
+                                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                                                     ) : (
-                                                        <CheckCircle className="w-3 h-3 mr-1"/>
+                                                        <CheckCircle className="w-3 h-3 mr-1" />
                                                     )}
                                                     Mark as Resolved
                                                 </Button>
@@ -1277,7 +1248,7 @@ const ReconciledTransactions: React.FC = () => {
                                                 className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg"
                                                 disabled
                                             >
-                                                <MessageSquare className="w-3 h-3 mr-1"/>
+                                                <MessageSquare className="w-3 h-3 mr-1" />
                                                 Add Comment
                                             </Button>
                                         </div>
@@ -1294,7 +1265,7 @@ const ReconciledTransactions: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-7xl mx-auto">
-                {selectedView === 'list' ? <BatchesList/> : <BatchDetails/>}
+                {selectedView === 'list' ? <BatchesList /> : <BatchDetails />}
             </div>
             <style jsx>{`
                 @keyframes fade-in {

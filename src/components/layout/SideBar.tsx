@@ -8,7 +8,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  FileText, // Added for Reconciled Transactions
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -36,14 +37,6 @@ const navigationItems = [
     gradient: 'from-rose-500 to-pink-500',
     hoverGlow: 'hover:shadow-rose-500/25'
   },
-  // {
-  //   name: 'Transactions',
-  //   href: '/transactions',
-  //   icon: CreditCard,
-  //   permission: 'VIEW_TRANSACTIONS',
-  //   gradient: 'from-emerald-500 to-teal-500',
-  //   hoverGlow: 'hover:shadow-emerald-500/25'
-  // },
   {
     name: 'Real Time Reconciliation',
     href: '/reconciliation',
@@ -63,21 +56,11 @@ const navigationItems = [
   {
     name: 'Reconciled Transactions',
     href: '/reconciled',
-    icon: GitMerge,
+    icon: FileText, // Changed from GitMerge to FileText
     permission: 'VIEW_RECONCILED_TRANSACTIONS',
-    gradient: 'from-indigo-500 to-blue-500',
-    hoverGlow: 'hover:shadow-indigo-500/25'
+    gradient: 'from-teal-500 to-emerald-500', // Updated gradient for distinction
+    hoverGlow: 'hover:shadow-teal-500/25' // Updated hover glow
   },
-
-
-  // {
-  //   name: 'Settings',
-  //   href: '/settings',
-  //   icon: Settings,
-  //   permission: 'VIEW_SETTINGS',
-  //   gradient: 'from-slate-500 to-gray-500',
-  //   hoverGlow: 'hover:shadow-slate-500/25'
-  // },
 ];
 
 export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
@@ -98,12 +81,10 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
           <div className="relative flex items-center justify-between p-4 border-b border-slate-200/60 dark:border-slate-700/60">
             {!collapsed && (
                 <div className="flex items-center gap-3 animate-fade-in">
-
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                      Finance Dashboard
-                    </span>
-
+                <span className="text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                  Finance Dashboard
+                </span>
                   </div>
                 </div>
             )}
@@ -186,8 +167,8 @@ export const SideBar = ({ collapsed, setCollapsed }: SideBarProps) => {
                                 "truncate transition-all duration-300 transform",
                                 isHovered && "translate-x-1"
                             )}>
-                              {item.name}
-                            </span>
+                      {item.name}
+                    </span>
                         )}
                         <NavLink to={item.href}>
                           {({ isActive }) => (

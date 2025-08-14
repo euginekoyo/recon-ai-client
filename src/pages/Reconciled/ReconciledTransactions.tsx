@@ -544,7 +544,7 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                         <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                             Status
                                         </span>
-                                        <span className="text-gray-800">{record.systemRecord.aiReasoning || 'N/A'}</span>
+                                        <span className="text-gray-800">{record.systemRecord.status || 'N/A'}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-600">Direction:</span>

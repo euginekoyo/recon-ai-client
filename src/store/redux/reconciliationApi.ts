@@ -104,10 +104,11 @@ export const reconciliationApi = createApi({
             }),
             invalidatesTags: ['Batch', 'Records'],
         }),
-        resolveRecord: builder.mutation<void, number>({
-            query: (id) => ({
+        resolveRecord: builder.mutation<void, { id: number; comment: string }>({
+            query: ({ id, comment }) => ({
                 url: `/api/recon/records/${id}/resolve`,
                 method: 'POST',
+                body: { comment },
             }),
             invalidatesTags: ['Records'],
         }),

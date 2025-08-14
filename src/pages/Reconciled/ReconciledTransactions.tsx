@@ -1,42 +1,13 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    Search,
-    Download,
-    Eye,
-    GitMerge,
-    CheckCircle,
-    AlertTriangle,
-    Clock,
-    XCircle,
-    FileText,
-    TrendingUp,
-    Users,
-    Building2,
-    MessageSquare,
-    ThumbsUp,
-    Loader2,
-    Repeat,
-    Code,
-    ArrowUp,
-    ArrowDown,
-} from 'lucide-react';
-import {
-    useGetBatchesQuery,
-    useGetBatchQuery,
-    useGetRecordsQuery,
-    useRetryBatchMutation,
-    useResolveRecordMutation,
-} from '@/store/redux/reconciliationApi';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Search, Download, Eye, GitMerge, CheckCircle, AlertTriangle, Clock, XCircle, FileText, TrendingUp, Users, Building2, MessageSquare, ThumbsUp, Loader2, Repeat, Code, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
+import { useGetBatchesQuery, useGetBatchQuery, useGetRecordsQuery, useRetryBatchMutation, useResolveRecordMutation } from '@/store/redux/reconciliationApi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { debounce } from 'lodash';
 import ReportDownloader from '@/pages/Reconciled/ReportDownloader';
@@ -81,14 +52,8 @@ interface BatchRecord {
         updatedAt: string;
     };
     displayData?: {
-        vendor: {
-            core: Record<string, any>;
-            raw: Record<string, any>;
-        };
-        backoffice: {
-            core: Record<string, any>;
-            raw: Record<string, any>;
-        };
+        vendor: { core: Record<string, any>; raw: Record<string, any> };
+        backoffice: { core: Record<string, any>; raw: Record<string, any> };
     };
 }
 
@@ -109,13 +74,20 @@ interface ReconciliationBatch {
     failureReason?: string;
 }
 
+interface RecordModalProps {
+    record: BatchRecord | null;
+    isOpen: boolean;
+    onClose: () => void;
+    onResolveRecord: (recordId: string, comment: string) => void;
+    onAddComment: (recordId: string, comment: string) => void;
+    isResolving: boolean;
+}
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
     state = { hasError: false };
-
     static getDerivedStateFromError() {
         return { hasError: true };
     }
-
     render() {
         if (this.state.hasError) {
             return (
@@ -130,13 +102,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 const mapReconBatchToReconciliationBatch = (batch: any): ReconciliationBatch => {
     const totalRecords = batch.processedRecords || 0;
-
     return {
         id: `RB-${batch.id}`,
         date: batch.createdAt || new Date().toISOString(),
-        status: batch.status?.toLowerCase() === 'completed' ? 'done' :
-            batch.status?.toLowerCase() === 'processing' ? 'running' :
-                batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
+        status: batch.status?.toLowerCase() === 'completed' ? 'done' : batch.status?.toLowerCase() === 'processing' ? 'running' : batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
         totalRecords,
         matchedRecords: 0,
         unmatchedRecords: 0,
@@ -145,8 +114,7 @@ const mapReconBatchToReconciliationBatch = (batch: any): ReconciliationBatch => 
         matchRate: 0,
         bankFileName: batch.backofficeFile?.split('/').pop() || 'Unknown File',
         vendorFileName: batch.vendorFile?.split('/').pop() || 'Unknown File',
-        processingTime: batch.status?.toLowerCase() === 'completed' && batch.createdAt && batch.updatedAt ?
-            calculateProcessingTime(batch.createdAt, batch.updatedAt) : undefined,
+        processingTime: batch.status?.toLowerCase() === 'completed' && batch.createdAt && batch.updatedAt ? calculateProcessingTime(batch.createdAt, batch.updatedAt) : undefined,
         records: [],
         failureReason: batch.failureReason,
     };
@@ -166,19 +134,16 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
     let displayData: any = {};
     let vendorData: any = {};
     let backofficeData: any = {};
-
     try {
         displayData = JSON.parse(record.displayData || '{}');
     } catch (error) {
         console.warn(`Failed to parse displayData for record ${record.id}`);
     }
-
     try {
         vendorData = JSON.parse(record.vendorData || '{}');
     } catch (error) {
         console.warn(`Failed to parse vendorData for record ${record.id}`);
     }
-
     if (record.backofficeData) {
         try {
             backofficeData = JSON.parse(record.backofficeData);
@@ -186,12 +151,10 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
             console.warn(`Failed to parse backofficeData for record ${record.id}`);
         }
     }
-
     const vendorCore = displayData?.vendor?.core || vendorData?.core || {};
     const vendorRaw = displayData?.vendor?.raw || vendorData?.raw || {};
     const backofficeCore = displayData?.backoffice?.core || backofficeData?.core || {};
     const backofficeRaw = displayData?.backoffice?.raw || backofficeData?.raw || {};
-
     let flags: string[] = [];
     if (record.fieldFlags) {
         try {
@@ -203,7 +166,6 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
             console.warn(`Failed to parse fieldFlags for record ${record.id}`);
         }
     }
-
     let aiReasoning: string | undefined;
     if (record.discrepancies) {
         try {
@@ -218,14 +180,12 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
             aiReasoning = record.discrepancies;
         }
     }
-
     const getStatus = (matchStatus: string): 'matched' | 'unmatched' | 'partial' => {
         const status = matchStatus?.toLowerCase();
         if (status?.includes('full') || status === 'matched') return 'matched';
         if (status?.includes('partial')) return 'partial';
         return 'unmatched';
     };
-
     return {
         id: record.id.toString(),
         transactionId: vendorCore.transaction_id || vendorRaw['Ref No'] || `TXN-${record.id}`,
@@ -256,14 +216,12 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
         aiReasoning,
         flags,
         resolved: record.resolved || false,
-        comments: [],
+        comments: record.comments || [],
         batchInfo: record.batch ? {
             id: `RB-${record.batch.id}`,
             backofficeFile: record.batch.backofficeFile?.split('/').pop() || 'Unknown File',
             vendorFile: record.batch.vendorFile?.split('/').pop() || 'Unknown File',
-            status: record.batch.status?.toLowerCase() === 'completed' ? 'done' :
-                record.batch.status?.toLowerCase() === 'processing' ? 'running' :
-                    record.batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
+            status: record.batch.status?.toLowerCase() === 'completed' ? 'done' : record.batch.status?.toLowerCase() === 'processing' ? 'running' : record.batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
             createdAt: record.batch.createdAt || new Date().toISOString(),
             updatedAt: record.batch.updatedAt || new Date().toISOString(),
         } : undefined,
@@ -278,16 +236,7 @@ const calculateBatchStats = (batch: ReconciliationBatch, records: BatchRecord[])
     const totalRecords = records.length || batch.totalRecords;
     const matchRate = totalRecords > 0 ? Math.round((matchedRecords / totalRecords) * 100) : 0;
     const anomalyCount = unmatchedRecords + partialRecords;
-
-    console.log(`Calculating stats for batch ${batch.id}:`, {
-        totalRecords,
-        matchedRecords,
-        unmatchedRecords,
-        partialRecords,
-        matchRate,
-        anomalyCount,
-    });
-
+    console.log(`Calculating stats for batch ${batch.id}:`, { totalRecords, matchedRecords, unmatchedRecords, partialRecords, matchRate, anomalyCount });
     return {
         ...batch,
         totalRecords,
@@ -305,8 +254,8 @@ const escapeCsvValue = (value: string | number | undefined): string => {
     const str = String(value);
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
-}
-return str;
+    }
+    return str;
 };
 
 const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
@@ -315,7 +264,6 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
         alert('No problematic records found to export.');
         return;
     }
-
     const headers = [
         'Transaction ID',
         'Description',
@@ -337,7 +285,6 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
         'System Record Date',
         'System Record Description',
     ];
-
     const rows = problematicRecords.map(record => [
         escapeCsvValue(record.transactionId),
         escapeCsvValue(record.description),
@@ -359,7 +306,6 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
         escapeCsvValue(record.systemRecord?.date),
         escapeCsvValue(record.systemRecord?.description),
     ].join(','));
-
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -372,6 +318,356 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
     URL.revokeObjectURL(url);
 };
 
+// Utility functions moved outside component
+const getStatusBadge = (status: string) => {
+    const configs = {
+        done: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+        running: { color: 'bg-indigo-500 text-white', icon: Clock },
+        pending: { color: 'bg-amber-500 text-white', icon: Clock },
+        failed: { color: 'bg-rose-500 text-white', icon: XCircle },
+        matched: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+        unmatched: { color: 'bg-rose-500 text-white', icon: XCircle },
+        partial: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
+    };
+    const config = configs[status.toLowerCase()] || { color: 'bg-gray-500 text-white', icon: Clock };
+    const Icon = config.icon;
+    return (
+        <Badge className={`${config.color} font-medium px-2 py-0.5 rounded-full flex items-center gap-1 text-xs`}>
+            <Icon className="w-3 h-3" />
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+        </Badge>
+    );
+};
+
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+};
+
+const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const getFieldErrorStatus = (field: string, record: BatchRecord): boolean => {
+    return record.flags.some(flag => flag.toLowerCase().includes(field.toLowerCase()));
+};
+
+const TransactionModal: React.FC<RecordModalProps> = React.memo(({
+                                                                     record,
+                                                                     isOpen,
+                                                                     onClose,
+                                                                     onResolveRecord,
+                                                                     onAddComment,
+                                                                     isResolving,
+                                                                 }) => {
+    const [newComment, setNewComment] = useState('');
+    const [showRawData, setShowRawData] = useState(false);
+
+    useEffect(() => {
+        if (record) {
+            setNewComment('');
+            setShowRawData(false);
+        }
+    }, [record?.id]);
+
+    const handleResolveRecord = useCallback((recordId: string, comment: string) => {
+        if (!comment.trim()) {
+            alert('Please provide a resolution comment.');
+            return;
+        }
+        onResolveRecord(recordId, comment);
+    }, [onResolveRecord]);
+
+    const handleAddComment = useCallback((recordId: string, comment: string) => {
+        if (comment.trim()) {
+            onAddComment(recordId, comment);
+        }
+    }, [onAddComment]);
+
+    const renderDataTable = (data: Record<string, any>, title: string, type: 'vendor' | 'backoffice') => {
+        if (!data) return null;
+        return (
+            <div className="space-y-1">
+                <h4 className="font-semibold text-gray-800 text-sm">{title}</h4>
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse bg-white rounded-md shadow-sm border border-gray-200">
+                        <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Field</th>
+                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Value</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {Object.entries(data).map(([key, value]) => (
+                            <tr key={key} className="border-b border-gray-100 last:border-b-0">
+                                <td className="px-3 py-1 text-xs">
+                                    <span className={getFieldErrorStatus(key, record!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                        {key}
+                                    </span>
+                                </td>
+                                <td className="px-3 py-1 text-xs text-gray-800">
+                                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    if (!record || !isOpen) return null;
+
+    return createPortal(
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-2xl bg-white border-none shadow-lg rounded-md transition-all duration-300">
+                <DialogHeader className="bg-gray-50 p-3 rounded-t-md">
+                    <DialogTitle className="text-base font-semibold text-gray-800">
+                        Transaction Detail: {record.transactionId}
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {record.batchInfo && (
+                        <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                <GitMerge className="w-3 h-3 mr-1 text-indigo-600" /> Batch Information
+                            </h4>
+                            <div className="bg-gray-50 p-3 rounded-md space-y-1 border border-gray-200">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Batch ID:</span>
+                                    <span className="font-mono text-gray-800">{record.batchInfo.id || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Bank File:</span>
+                                    <span className="text-gray-800">{record.batchInfo.backofficeFile || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Vendor File:</span>
+                                    <span className="text-gray-800">{record.batchInfo.vendorFile || 'N/A'}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Status:</span>
+                                    {getStatusBadge(record.batchInfo.status || 'pending')}
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Created At:</span>
+                                    <span className="text-gray-800">{formatDate(record.batchInfo.createdAt || new Date().toISOString())}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-600">Updated At:</span>
+                                    <span className="text-gray-800">{formatDate(record.batchInfo.updatedAt || new Date().toISOString())}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                <Building2 className="w-3 h-3 mr-1 text-teal-600" /> Bank Record
+                            </h4>
+                            {record.bankRecord ? (
+                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">ID:</span>
+                                        <span className="font-mono text-gray-800">{record.bankRecord.id || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Reference:</span>
+                                        <span className="font-mono text-gray-800">{record.bankRecord.reference || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Amount:</span>
+                                        <span className="font-semibold text-gray-800">{formatCurrency(record.bankRecord.amount || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Date:</span>
+                                        <span className="text-gray-800">{record.bankRecord.date || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className={getFieldErrorStatus('description', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                            Description
+                                        </span>
+                                        <span className="text-gray-800">{record.bankRecord.description || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                            Status
+                                        </span>
+                                        <span className="text-gray-800">{record.bankRecord.status || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Direction:</span>
+                                        <span className="text-gray-800">{record.bankRecord.direction || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
+                                    No bank record found
+                                </div>
+                            )}
+                        </div>
+                        <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                <Users className="w-3 h-3 mr-1 text-blue-600" /> System Record
+                            </h4>
+                            {record.systemRecord ? (
+                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">ID:</span>
+                                        <span className="font-mono text-gray-800">{record.systemRecord.id || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Reference:</span>
+                                        <span className="font-mono text-gray-800">{record.systemRecord.reference || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Amount:</span>
+                                        <span className="font-semibold text-gray-800">{formatCurrency(record.systemRecord.amount || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Date:</span>
+                                        <span className="text-gray-800">{record.systemRecord.date || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className={getFieldErrorStatus('description', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                            Description
+                                        </span>
+                                        <span className="text-gray-800">{record.systemRecord.description || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                                            Status
+                                        </span>
+                                        <span className="text-gray-800">{record.systemRecord.status || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-600">Direction:</span>
+                                        <span className="text-gray-800">{record.systemRecord.direction || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
+                                    No system record found
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
+                        onClick={() => setShowRawData(!showRawData)}
+                    >
+                        <Code className="w-3 h-3 mr-1" />
+                        {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
+                    </Button>
+                    {showRawData && record.displayData && (
+                        <div className="space-y-4">
+                            {renderDataTable(record.displayData.backoffice?.raw, 'Bank Raw Data', 'backoffice')}
+                            {renderDataTable(record.displayData.vendor?.raw, 'Vendor Raw Data', 'vendor')}
+                        </div>
+                    )}
+                    {record.aiReasoning && (
+                        <div className="space-y-3">
+                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                                <AlertTriangle className="w-3 h-3 mr-1 text-purple-600" /> AI Match Reasoning
+                            </h4>
+                            <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                                {record.aiReasoning.split('; ').length > 1 ? (
+                                    <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+                                        {record.aiReasoning.split('; ').map((reason, index) => (
+                                            <li key={index} className="pl-1 flex items-center gap-1">
+                                                <Badge
+                                                    className={`${reason.includes('mismatch') ? 'bg-rose-500 text-white' : 'bg-purple-500 text-white'} rounded-full text-xs`}
+                                                >
+                                                    {reason.includes('mismatch') ? 'Error' : 'Info'}
+                                                </Badge>
+                                                {reason}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-xs text-gray-700">{record.aiReasoning}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    <div className="space-y-3">
+                        <h4 className="font-semibold text-gray-800 flex items-center text-sm">
+                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" /> Comments ({record.comments.length})
+                        </h4>
+                        <div className="space-y-2">
+                            {record.comments.length > 0 ? (
+                                record.comments.map((comment, i) => (
+                                    <div key={i} className="bg-gray-50 p-2 rounded-md text-xs text-gray-700 border border-gray-200">
+                                        {comment}
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-gray-600">No comments</p>
+                            )}
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Enter comment (required for resolution)"
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                    className="h-8 text-xs"
+                                />
+                                <Button
+                                    size="sm"
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs"
+                                    onClick={() => handleAddComment(record.id, newComment)}
+                                    disabled={!newComment.trim()}
+                                >
+                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                    Add Comment
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                        <div className="flex items-center gap-1">
+                            {getStatusBadge(record.status)}
+                            <Badge className="bg-indigo-500 text-white rounded-full text-xs">
+                                {Math.round(record.confidence * 100)}% confidence
+                            </Badge>
+                            {record.resolved && (
+                                <Badge className="bg-teal-500 text-white rounded-full text-xs">
+                                    <CheckCircle className="w-3 h-3 mr-1" /> Resolved
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="flex gap-1">
+                            {!record.resolved && (
+                                <Button
+                                    size="xs"
+                                    className="bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs"
+                                    onClick={() => handleResolveRecord(record.id, newComment)}
+                                    disabled={isResolving || !newComment.trim()}
+                                >
+                                    {isResolving ? (
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : (
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                    )}
+                                    Mark as Resolved
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>,
+        document.body
+    );
+});
+
 const ReconciledTransactions: React.FC = () => {
     const navigate = useNavigate();
     const { batchId } = useParams<{ batchId?: string }>();
@@ -381,30 +677,16 @@ const ReconciledTransactions: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [recordStatusFilter, setRecordStatusFilter] = useState('all');
     const [selectedRecord, setSelectedRecord] = useState<BatchRecord | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
-    const [showRawData, setShowRawData] = useState(false);
     const [sortField, setSortField] = useState<keyof ReconciliationBatch | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-    const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();
+    const { data: batchesData, isLoading: isBatchesLoading, error: batchesError, refetch: refetchBatches } = useGetBatchesQuery();
     const batches = useMemo(() => batchesData ? batchesData.map(mapReconBatchToReconciliationBatch) : [], [batchesData]);
-
     const numericBatchId = useMemo(() => batchId ? parseInt(batchId.replace('RB-', '')) : undefined, [batchId]);
-    const {
-        data: batchData,
-        isLoading: isBatchLoading,
-        error: batchError,
-        refetch: refetchBatch
-    } = useGetBatchQuery(numericBatchId!, {
-        skip: !numericBatchId,
-    });
-
-    const {
-        data: recordsData,
-        isLoading: isRecordsLoading,
-        error: recordsError,
-        refetch: refetchRecords
-    } = useGetRecordsQuery(
+    const { data: batchData, isLoading: isBatchLoading, error: batchError, refetch: refetchBatch } = useGetBatchQuery(numericBatchId!, { skip: !numericBatchId });
+    const { data: recordsData, isLoading: isRecordsLoading, error: recordsError, refetch: refetchRecords } = useGetRecordsQuery(
         {
             id: numericBatchId!,
             status: recordStatusFilter !== 'all' ? recordStatusFilter.toUpperCase().replace('PARTIAL', 'PARTIAL_MATCH') : undefined,
@@ -412,7 +694,6 @@ const ReconciledTransactions: React.FC = () => {
         },
         { skip: !numericBatchId },
     );
-
     const [retryBatch, { isLoading: isRetrying }] = useRetryBatchMutation();
     const [resolveRecord, { isLoading: isResolving }] = useResolveRecordMutation();
 
@@ -429,9 +710,43 @@ const ReconciledTransactions: React.FC = () => {
         ) || [];
     }, [selectedBatchWithRecords, recordStatusFilter]);
 
-    useEffect(() => {
-        console.log('selectedRecord updated:', selectedRecord);
-    }, [selectedRecord]);
+    const filteredBatches = useMemo(() => {
+        const filtered = batches.map(batch => {
+            const matchingBatch = selectedBatchWithRecords && selectedBatchWithRecords.id === batch.id ? selectedBatchWithRecords : batch;
+            return {
+                ...matchingBatch,
+                totalRecords: matchingBatch.totalRecords,
+                matchedRecords: matchingBatch.matchedRecords,
+                unmatchedRecords: matchingBatch.unmatchedRecords,
+                partialRecords: matchingBatch.partialRecords,
+                matchRate: matchingBatch.matchRate,
+                anomalyCount: matchingBatch.anomalyCount,
+            };
+        }).filter(
+            (batch) =>
+                (batch.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    batch.bankFileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
+                (statusFilter === 'all' || batch.status === statusFilter)
+        );
+        if (sortField) {
+            filtered.sort((a, b) => {
+                const aValue = a[sortField];
+                const bValue = b[sortField];
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+                } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+                } else if (sortField === 'date') {
+                    const aDate = new Date(aValue).getTime();
+                    const bDate = new Date(bValue).getTime();
+                    return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
+                }
+                return 0;
+            });
+        }
+        return filtered;
+    }, [batches, searchTerm, statusFilter, selectedBatchWithRecords, sortField, sortDirection]);
 
     useEffect(() => {
         if (batchId && batches.length) {
@@ -460,95 +775,6 @@ const ReconciledTransactions: React.FC = () => {
         }
     }, [selectedView, lastSelectedBatchId]);
 
-    const getStatusBadge = useCallback((status: string) => {
-        const configs = {
-            done: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-            running: { color: 'bg-indigo-500 text-white', icon: Clock },
-            pending: { color: 'bg-amber-500 text-white', icon: Clock },
-            failed: { color: 'bg-rose-500 text-white', icon: XCircle },
-            matched: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-            unmatched: { color: 'bg-rose-500 text-white', icon: XCircle },
-            partial: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
-        };
-
-        const config = configs[status.toLowerCase()] || {
-            color: 'bg-gray-500 text-white',
-            icon: Clock,
-        };
-        const Icon = config.icon;
-
-        return (
-            <Badge className={`${config.color} font-medium px-2 py-0.5 rounded-full flex items-center gap-1 text-xs`}>
-                <Icon className="w-3 h-3" />
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-        );
-    }, []);
-
-    const formatCurrency = useCallback((amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(amount);
-    }, []);
-
-    const formatDate = useCallback((dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    }, []);
-
-    const filteredBatches = useMemo(() => {
-        const filtered = batches.map(batch => {
-            const matchingBatch = selectedBatchWithRecords && selectedBatchWithRecords.id === batch.id ? selectedBatchWithRecords : batch;
-            return {
-                ...matchingBatch,
-                totalRecords: matchingBatch.totalRecords,
-                matchedRecords: matchingBatch.matchedRecords,
-                unmatchedRecords: matchingBatch.unmatchedRecords,
-                partialRecords: matchingBatch.partialRecords,
-                matchRate: matchingBatch.matchRate,
-                anomalyCount: matchingBatch.anomalyCount,
-            };
-        }).filter(
-            (batch) =>
-                (batch.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    batch.bankFileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
-                (statusFilter === 'all' || batch.status === statusFilter)
-        );
-
-        if (sortField) {
-            filtered.sort((a, b) => {
-                const aValue = a[sortField];
-                const bValue = b[sortField];
-
-                if (typeof aValue === 'string' && typeof bValue === 'string') {
-                    return sortDirection === 'asc'
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
-                } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-                    return sortDirection === 'asc'
-                        ? aValue - bValue
-                        : bValue - aValue;
-                } else if (sortField === 'date') {
-                    const aDate = new Date(aValue).getTime();
-                    const bDate = new Date(bValue).getTime();
-                    return sortDirection === 'asc'
-                        ? aDate - bDate
-                        : bDate - aDate;
-                }
-                return 0;
-            });
-        }
-
-        return filtered;
-    }, [batches, searchTerm, statusFilter, selectedBatchWithRecords, sortField, sortDirection]);
-
     const handleRetryBatch = useCallback(async () => {
         if (!numericBatchId) return;
         try {
@@ -560,23 +786,48 @@ const ReconciledTransactions: React.FC = () => {
         }
     }, [numericBatchId, retryBatch, refetchBatch, refetchRecords]);
 
-    const handleResolveRecord = useCallback(async (recordId: string) => {
+    const handleResolveRecord = useCallback(async (recordId: string, comment: string) => {
+        if (!comment.trim()) {
+            alert('Please provide a resolution comment.');
+            return;
+        }
         try {
-            await resolveRecord(parseInt(recordId)).unwrap();
-            setSelectedRecord(null);
+            await resolveRecord({ id: parseInt(recordId), comment }).unwrap();
+            setSelectedRecord(prev => prev ? { ...prev, resolved: true, comments: [...prev.comments, comment] } : null);
             refetchRecords();
         } catch (err) {
             console.error('Failed to resolve record:', err);
+            alert('Failed to resolve record. Please try again.');
         }
     }, [resolveRecord, refetchRecords]);
+
+    const handleAddComment = useCallback((recordId: string, comment: string) => {
+        if (comment.trim()) {
+            setSelectedRecord(prev => prev ? { ...prev, comments: [...prev.comments, comment] } : null);
+        }
+    }, []);
+
+    const handleRefreshBatches = useCallback(async () => {
+        try {
+            await refetchBatches();
+        } catch (err) {
+            console.error('Failed to refresh batches:', err);
+        }
+    }, [refetchBatches]);
 
     const debouncedHandleRowClick = useCallback(
         debounce((record: BatchRecord) => {
             console.log('Row clicked for record:', record);
             setSelectedRecord(record);
+            setIsModalOpen(true);
         }, 300),
         []
     );
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedRecord(null);
+        setIsModalOpen(false);
+    }, []);
 
     const handleExportIssues = useCallback(() => {
         if (selectedBatchWithRecords && selectedBatchWithRecords.records.length > 0) {
@@ -585,44 +836,6 @@ const ReconciledTransactions: React.FC = () => {
             alert('No records available to export.');
         }
     }, [selectedBatchWithRecords]);
-
-    const getFieldErrorStatus = useCallback((field: string, record: BatchRecord): boolean => {
-        return record.flags.some(flag => flag.toLowerCase().includes(field.toLowerCase()));
-    }, []);
-
-    const renderDataTable = (data: Record<string, any>, title: string, type: 'vendor' | 'backoffice') => {
-        if (!data) return null;
-
-        return (
-            <div className="space-y-1">
-                <h4 className="font-semibold text-gray-800 text-sm">{title}</h4>
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse bg-white rounded-md shadow-sm border border-gray-200">
-                        <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Field</th>
-                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Value</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {Object.entries(data).map(([key, value]) => (
-                            <tr key={key} className="border-b border-gray-100 last:border-b-0">
-                                <td className="px-3 py-1 text-xs">
-                                    <span className={getFieldErrorStatus(key, selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                        {key}
-                                    </span>
-                                </td>
-                                <td className="px-3 py-1 text-xs text-gray-800">
-                                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                </td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
-    };
 
     const BatchesList = () => {
         const handleSort = (field: keyof ReconciliationBatch) => {
@@ -645,7 +858,6 @@ const ReconciledTransactions: React.FC = () => {
                         Review and manage all reconciliation batches with detailed insights and status tracking.
                     </p>
                 </div>
-
                 {isBatchesLoading && (
                     <Card className="border-none bg-white shadow-md rounded-lg">
                         <CardContent className="p-4 flex items-center justify-center gap-2">
@@ -654,7 +866,6 @@ const ReconciledTransactions: React.FC = () => {
                         </CardContent>
                     </Card>
                 )}
-
                 {batchesError && (
                     <Card className="border-none bg-rose-50 shadow-md rounded-lg">
                         <CardContent className="p-4 flex items-center gap-2">
@@ -663,7 +874,6 @@ const ReconciledTransactions: React.FC = () => {
                         </CardContent>
                     </Card>
                 )}
-
                 {!isBatchesLoading && !batchesError && (
                     <Card className="border-none bg-white shadow-md rounded-lg">
                         <CardHeader>
@@ -675,8 +885,7 @@ const ReconciledTransactions: React.FC = () => {
                         <CardContent className="p-4">
                             <div className="flex flex-col lg:flex-row gap-3 mb-4">
                                 <div className="relative flex-1">
-                                    <Search
-                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                                     <Input
                                         placeholder="Search batch ID, file names..."
                                         value={searchTerm}
@@ -696,9 +905,17 @@ const ReconciledTransactions: React.FC = () => {
                                         <option value="done">Done</option>
                                         <option value="failed">Failed</option>
                                     </select>
-                                    <Button className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm">
-                                        <Download className="h-3 w-3 mr-1" />
-                                        Export All
+                                    <Button
+                                        className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
+                                        onClick={handleRefreshBatches}
+                                        disabled={isBatchesLoading}
+                                    >
+                                        {isBatchesLoading ? (
+                                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                        ) : (
+                                            <RefreshCw className="h-3 w-3 mr-1" />
+                                        )}
+                                        Refresh
                                     </Button>
                                 </div>
                             </div>
@@ -708,48 +925,28 @@ const ReconciledTransactions: React.FC = () => {
                                 <table className="w-full">
                                     <thead>
                                     <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th
-                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
-                                            onClick={() => handleSort('id')}
-                                        >
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('id')}>
                                             <div className="flex items-center gap-1">
                                                 Batch ID
-                                                {sortField === 'id' && (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                                                )}
+                                                {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                                             </div>
                                         </th>
-                                        <th
-                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
-                                            onClick={() => handleSort('date')}
-                                        >
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('date')}>
                                             <div className="flex items-center gap-1">
                                                 Date
-                                                {sortField === 'date' && (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                                                )}
+                                                {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                                             </div>
                                         </th>
-                                        <th
-                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
-                                            onClick={() => handleSort('status')}
-                                        >
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('status')}>
                                             <div className="flex items-center gap-1">
                                                 Status
-                                                {sortField === 'status' && (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                                                )}
+                                                {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                                             </div>
                                         </th>
-                                        <th
-                                            className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer"
-                                            onClick={() => handleSort('totalRecords')}
-                                        >
+                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('totalRecords')}>
                                             <div className="flex items-center gap-1">
                                                 Records
-                                                {sortField === 'totalRecords' && (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                                                )}
+                                                {sortField === 'totalRecords' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                                             </div>
                                         </th>
                                         <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Files</th>
@@ -761,18 +958,14 @@ const ReconciledTransactions: React.FC = () => {
                                         <tr
                                             key={batch.id}
                                             id={`batch-row-${batch.id}`}
-                                            className={`hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 ${
-                                                lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''
-                                            }`}
+                                            className={`hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 ${lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''}`}
                                         >
                                             <td className="px-4 py-2 font-mono font-medium text-indigo-700 text-sm">{batch.id}</td>
                                             <td className="px-4 py-2 text-gray-600 text-sm">{formatDate(batch.date)}</td>
                                             <td className="px-4 py-2">{getStatusBadge(batch.status)}</td>
                                             <td className="px-4 py-2">
                                                 <div className="space-y-0.5">
-                                                    <div className="text-xs font-medium text-gray-800">
-                                                        {batch.totalRecords.toLocaleString()} total
-                                                    </div>
+                                                    <div className="text-xs font-medium text-gray-800">{batch.totalRecords.toLocaleString()} total</div>
                                                     <div className="text-xs text-gray-600">
                                                         {batch.matchedRecords} matched, {batch.unmatchedRecords} unmatched, {batch.partialRecords} partial
                                                     </div>
@@ -841,7 +1034,6 @@ const ReconciledTransactions: React.FC = () => {
 
     const BatchDetails = () => {
         if (!selectedBatch || !selectedBatchWithRecords) return null;
-
         return (
             <div className="space-y-4 animate-fade-in">
                 <div className="flex items-center justify-between">
@@ -852,6 +1044,7 @@ const ReconciledTransactions: React.FC = () => {
                                 setSelectedView('list');
                                 setSelectedBatch(null);
                                 setSelectedRecord(null);
+                                setIsModalOpen(false);
                                 navigate('/reconciled');
                             }}
                             className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
@@ -859,16 +1052,14 @@ const ReconciledTransactions: React.FC = () => {
                             ← Back to Batches
                         </Button>
                         <div>
-                            <h1 className="text-xl obsessive text-gray-800">{selectedBatch.id}</h1>
+                            <h1 className="text-xl font-semibold text-gray-800">{selectedBatch.id}</h1>
                             <p className="text-xs text-gray-600">Processed on {formatDate(selectedBatch.date)}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
                         {getStatusBadge(selectedBatch.status)}
                         {selectedBatchWithRecords.status === 'failed' && selectedBatchWithRecords.failureReason && (
-                            <Badge className="bg-rose-500 text-white rounded-full text-xs">
-                                {selectedBatchWithRecords.failureReason}
-                            </Badge>
+                            <Badge className="bg-rose-500 text-white rounded-full text-xs">{selectedBatchWithRecords.failureReason}</Badge>
                         )}
                         <Button
                             className="h-8 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-sm"
@@ -880,7 +1071,6 @@ const ReconciledTransactions: React.FC = () => {
                         <ReportDownloader batchId={numericBatchId!.toString()} />
                     </div>
                 </div>
-
                 {(isBatchLoading || isRecordsLoading) && (
                     <Card className="border-none bg-white shadow-md rounded-lg">
                         <CardContent className="p-4 flex items-center justify-center gap-2">
@@ -889,7 +1079,6 @@ const ReconciledTransactions: React.FC = () => {
                         </CardContent>
                     </Card>
                 )}
-
                 {(batchError || recordsError) && (
                     <Card className="border-none bg-rose-50 shadow-md rounded-lg">
                         <CardContent className="p-4 flex items-center gap-2">
@@ -900,21 +1089,17 @@ const ReconciledTransactions: React.FC = () => {
                         </CardContent>
                     </Card>
                 )}
-
                 {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <Card className="border-none bg-white shadow-md rounded-md">
                             <CardContent className="p-3 flex items-center justify-between">
                                 <div>
                                     <p className="text-xs text-gray-600 font-medium">Total Records</p>
-                                    <p className="text-xl font-bold text-gray-800">
-                                        {selectedBatchWithRecords.totalRecords.toLocaleString()}
-                                    </p>
+                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.totalRecords.toLocaleString()}</p>
                                 </div>
                                 <FileText className="w-5 h-5 text-indigo-600" />
                             </CardContent>
                         </Card>
-
                         <Card className="border-none bg-white shadow-md rounded-md">
                             <CardContent className="p-3 flex items-center justify-between">
                                 <div>
@@ -924,7 +1109,6 @@ const ReconciledTransactions: React.FC = () => {
                                 <TrendingUp className="w-5 h-5 text-teal-600" />
                             </CardContent>
                         </Card>
-
                         <Card className="border-none bg-white shadow-md rounded-md">
                             <CardContent className="p-3 flex items-center justify-between">
                                 <div>
@@ -934,21 +1118,17 @@ const ReconciledTransactions: React.FC = () => {
                                 <AlertTriangle className="w-5 h-5 text-amber-600" />
                             </CardContent>
                         </Card>
-
                         <Card className="border-none bg-white shadow-md rounded-md">
                             <CardContent className="p-3 flex items-center justify-between">
                                 <div>
                                     <p className="text-xs text-gray-600 font-medium">Processing Time</p>
-                                    <p className="text-xl font-bold text-gray-800">
-                                        {selectedBatchWithRecords.processingTime || 'N/A'}
-                                    </p>
+                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.processingTime || 'N/A'}</p>
                                 </div>
                                 <Clock className="w-5 h-5 text-purple-600" />
                             </CardContent>
                         </Card>
                     </div>
                 )}
-
                 {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
                     <Card className="border-none bg-white shadow-md rounded-md">
                         <CardContent className="p-4">
@@ -966,9 +1146,7 @@ const ReconciledTransactions: React.FC = () => {
                                         <option value="partial">Partial Match</option>
                                     </select>
                                 </div>
-                                <Badge className="bg-indigo-500 text-white rounded-full text-xs">
-                                    {filteredRecords.length} records
-                                </Badge>
+                                <Badge className="bg-indigo-500 text-white rounded-full text-xs">{filteredRecords.length} records</Badge>
                             </div>
                         </CardContent>
                         <CardContent className="p-0">
@@ -994,20 +1172,14 @@ const ReconciledTransactions: React.FC = () => {
                                         >
                                             <td className="px-4 py-2 font-mono text-indigo-700 text-sm">{record.transactionId}</td>
                                             <td className="px-4 py-2 text-gray-800 text-sm">{record.description}</td>
-                                            <td className="px-4 py-2 font-semibold text-gray-800 text-sm">
-                                                {formatCurrency(record.amount)}
-                                            </td>
+                                            <td className="px-4 py-2 font-semibold text-gray-800 text-sm">{formatCurrency(record.amount)}</td>
                                             <td className="px-4 py-2">{getStatusBadge(record.status)}</td>
                                             <td className="px-4 py-2">
                                                 <div className="flex items-center gap-1">
                                                     <div className="flex-1 bg-gray-200 rounded-full h-1.5 w-12">
                                                         <div
                                                             className={`h-1.5 rounded-full transition-all duration-300 ${
-                                                                record.confidence > 0.8
-                                                                    ? 'bg-teal-500'
-                                                                    : record.confidence > 0.5
-                                                                        ? 'bg-amber-500'
-                                                                        : 'bg-rose-500'
+                                                                record.confidence > 0.8 ? 'bg-teal-500' : record.confidence > 0.5 ? 'bg-amber-500' : 'bg-rose-500'
                                                             }`}
                                                             style={{ width: `${record.confidence * 100}%` }}
                                                         ></div>
@@ -1019,17 +1191,12 @@ const ReconciledTransactions: React.FC = () => {
                                                 <div className="flex flex-wrap gap-1">
                                                     {Array.isArray(record.flags) && record.flags.length > 0 ? (
                                                         record.flags.map((flag, i) => (
-                                                            <Badge
-                                                                key={i}
-                                                                className="text-xs bg-rose-500 text-white rounded-full"
-                                                            >
+                                                            <Badge key={i} className="text-xs bg-rose-500 text-white rounded-full">
                                                                 {flag.replace(/_/g, ' ')}
                                                             </Badge>
                                                         ))
                                                     ) : (
-                                                        <Badge className="text-xs bg-gray-500 text-white rounded-full">
-                                                            No Flags
-                                                        </Badge>
+                                                        <Badge className="text-xs bg-gray-500 text-white rounded-full">No Flags</Badge>
                                                     )}
                                                 </div>
                                             </td>
@@ -1047,7 +1214,7 @@ const ReconciledTransactions: React.FC = () => {
                                                             className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 text-gray-700 text-xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleResolveRecord(record.id);
+                                                                debouncedHandleRowClick(record);
                                                             }}
                                                             disabled={isResolving}
                                                         >
@@ -1072,270 +1239,6 @@ const ReconciledTransactions: React.FC = () => {
                         </CardContent>
                     </Card>
                 )}
-
-                {selectedRecord && (
-                    <ErrorBoundary>
-                        <Dialog open={!!selectedRecord} onOpenChange={(open) => {
-                            if (!open) {
-                                setSelectedRecord(null);
-                                setShowRawData(false);
-                            }
-                        }}>
-                            <DialogContent className="sm:max-w-2xl bg-white border-none shadow-lg rounded-md">
-                                <DialogHeader className="bg-gray-50 p-3 rounded-t-md">
-                                    <DialogTitle className="text-base font-semibold text-gray-800">
-                                        Transaction Detail: {selectedRecord.transactionId}
-                                    </DialogTitle>
-                                </DialogHeader>
-                                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                                    {selectedRecord.batchInfo && (
-                                        <div className="space-y-3">
-                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                                <GitMerge className="w-3 h-3 mr-1 text-indigo-600" />
-                                                Batch Information
-                                            </h4>
-                                            <div className="bg-gray-50 p-3 rounded-md space-y-1 border border-gray-200">
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Batch ID:</span>
-                                                    <span className="font-mono text-gray-800">{selectedRecord.batchInfo.id || 'N/A'}</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Bank File:</span>
-                                                    <span className="text-gray-800">{selectedRecord.batchInfo.backofficeFile || 'N/A'}</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Vendor File:</span>
-                                                    <span className="text-gray-800">{selectedRecord.batchInfo.vendorFile || 'N/A'}</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Status:</span>
-                                                    {getStatusBadge(selectedRecord.batchInfo.status || 'pending')}
-                                                </div>
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Created At:</span>
-                                                    <span className="text-gray-800">{formatDate(selectedRecord.batchInfo.createdAt || new Date().toISOString())}</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="text-gray-600">Updated At:</span>
-                                                    <span className="text-gray-800">{formatDate(selectedRecord.batchInfo.updatedAt || new Date().toISOString())}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-3">
-                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                                <Building2 className="w-3 h-3 mr-1 text-teal-600" />
-                                                Bank Record
-                                            </h4>
-                                            {selectedRecord.bankRecord ? (
-                                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">ID:</span>
-                                                        <span className="font-mono text-gray-800">{selectedRecord.bankRecord.id || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Reference:</span>
-                                                        <span className="font-mono text-gray-800">{selectedRecord.bankRecord.reference || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Amount:</span>
-                                                        <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.bankRecord.amount || 0)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Date:</span>
-                                                        <span className="text-gray-800">{selectedRecord.bankRecord.date || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                                            Description
-                                                        </span>
-                                                        <span className="text-gray-800">{selectedRecord.bankRecord.description || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                                            Status
-                                                        </span>
-                                                        <span className="text-gray-800">{selectedRecord.bankRecord.status || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Direction:</span>
-                                                        <span className="text-gray-800">{selectedRecord.bankRecord.direction || 'N/A'}</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
-                                                    No bank record found
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                                <Users className="w-3 h-3 mr-1 text-blue-600" />
-                                                System Record
-                                            </h4>
-                                            {selectedRecord.systemRecord ? (
-                                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">ID:</span>
-                                                        <span className="font-mono text-gray-800">{selectedRecord.systemRecord.id || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Reference:</span>
-                                                        <span className="font-mono text-gray-800">{selectedRecord.systemRecord.reference || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Amount:</span>
-                                                        <span className="font-semibold text-gray-800">{formatCurrency(selectedRecord.systemRecord.amount || 0)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Date:</span>
-                                                        <span className="text-gray-800">{selectedRecord.systemRecord.date || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className={getFieldErrorStatus('description', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                                            Description
-                                                        </span>
-                                                        <span className="text-gray-800">{selectedRecord.systemRecord.description || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className={getFieldErrorStatus('status', selectedRecord!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                                            Status
-                                                        </span>
-                                                        <span className="text-gray-800">{selectedRecord.systemRecord.status || 'N/A'}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-600">Direction:</span>
-                                                        <span className="text-gray-800">{selectedRecord.systemRecord.direction || 'N/A'}</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
-                                                    No system record found
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
-                                        onClick={() => setShowRawData(!showRawData)}
-                                    >
-                                        <Code className="w-3 h-3 mr-1" />
-                                        {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
-                                    </Button>
-
-                                    {showRawData && selectedRecord.displayData && (
-                                        <div className="space-y-4">
-                                            {renderDataTable(selectedRecord.displayData.backoffice?.raw, 'Bank Raw Data', 'backoffice')}
-                                            {renderDataTable(selectedRecord.displayData.vendor?.raw, 'Vendor Raw Data', 'vendor')}
-                                        </div>
-                                    )}
-
-                                    {selectedRecord.aiReasoning && (
-                                        <div className="space-y-3">
-                                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                                <AlertTriangle className="w-3 h-3 mr-1 text-purple-600" />
-                                                AI Match Reasoning
-                                            </h4>
-                                            <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                                                {selectedRecord.aiReasoning.split('; ').length > 1 ? (
-                                                    <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
-                                                        {selectedRecord.aiReasoning.split('; ').map((reason, index) => (
-                                                            <li key={index} className="pl-1 flex items-center gap-1">
-                                                                <Badge
-                                                                    className={`${
-                                                                        reason.includes('mismatch') ? 'bg-rose-500 text-white' : 'bg-purple-500 text-white'
-                                                                    } rounded-full text-xs`}
-                                                                >
-                                                                    {reason.includes('mismatch') ? 'Error' : 'Info'}
-                                                                </Badge>
-                                                                {reason}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                ) : (
-                                                    <p className="text-xs text-gray-700">{selectedRecord.aiReasoning}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1">
-                                        <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" />
-                                            Comments ({selectedRecord.comments.length})
-                                        </h4>
-                                        <div className="space-y-1">
-                                            {selectedRecord.comments.length > 0 ? (
-                                                selectedRecord.comments.map((comment, i) => (
-                                                    <div key={i} className="bg-gray-50 p-2 rounded-md text-xs text-gray-700 border border-gray-200">
-                                                        {comment}
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="text-xs text-gray-600">No comments</p>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
-                                                disabled
-                                            >
-                                                Add Comment
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                                        <div className="flex items-center gap-1">
-                                            {getStatusBadge(selectedRecord.status)}
-                                            <Badge className="bg-indigo-500 text-white rounded-full text-xs">
-                                                {Math.round(selectedRecord.confidence * 100)}% confidence
-                                            </Badge>
-                                            {selectedRecord.resolved && (
-                                                <Badge className="bg-teal-500 text-white rounded-full text-xs">
-                                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                                    Resolved
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-1">
-                                            {!selectedRecord.resolved && (
-                                                <Button
-                                                    size="xs"
-                                                    className="bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs"
-                                                    onClick={() => handleResolveRecord(selectedRecord.id)}
-                                                    disabled={isResolving}
-                                                >
-                                                    {isResolving ? (
-                                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                    ) : (
-                                                        <CheckCircle className="w-3 h-3 mr-1" />
-                                                    )}
-                                                    Mark as Resolved
-                                                </Button>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                size="xs"
-                                                className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-xs"
-                                                disabled
-                                            >
-                                                <MessageSquare className="w-3 h-3 mr-1" />
-                                                Add Comment
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-                    </ErrorBoundary>
-                )}
             </div>
         );
     };
@@ -1345,18 +1248,21 @@ const ReconciledTransactions: React.FC = () => {
             <div className="max-w-6xl mx-auto">
                 {selectedView === 'list' ? <BatchesList /> : <BatchDetails />}
             </div>
+            <ErrorBoundary>
+                <TransactionModal
+                    record={selectedRecord}
+                    isOpen={isModalOpen}
+                    onClose={handleCloseModal}
+                    onResolveRecord={handleResolveRecord}
+                    onAddComment={handleAddComment}
+                    isResolving={isResolving}
+                />
+            </ErrorBoundary>
             <style jsx>{`
                 @keyframes fade-in {
-                    from {
-                        opacity: 0;
-                        transform: translateY(10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
-
                 .animate-fade-in {
                     animation: fade-in 0.5s ease-out;
                 }

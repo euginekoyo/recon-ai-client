@@ -544,7 +544,7 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                         <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
                                             Status
                                         </span>
-                                        <span className="text-gray-800">{record.systemRecord.status || 'N/A'}</span>
+                                        <span className="text-gray-800">{record.systemRecord.aiReasoning || 'N/A'}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-600">Direction:</span>
@@ -623,7 +623,7 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                     size="sm"
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs"
                                     onClick={() => handleAddComment(record.id, newComment)}
-                                    disabled={!newComment.trim()}
+                                    // disabled={!newComment.trim()}
                                 >
                                     <MessageSquare className="w-3 h-3 mr-1" />
                                     Add Comment
@@ -638,7 +638,7 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                 {Math.round(record.confidence * 100)}% confidence
                             </Badge>
                             {record.resolved && (
-                                <Badge className="bg-teal-500 text-white rounded-full text-xs">
+                                <Badge className="bg-gray-500 text-white rounded-full px-2 py-1 text-xs">
                                     <CheckCircle className="w-3 h-3 mr-1" /> Resolved
                                 </Badge>
                             )}
@@ -647,9 +647,9 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                             {!record.resolved && (
                                 <Button
                                     size="xs"
-                                    className="bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs"
+                                    className="bg-teal-600 hover:bg-teal-700 text-white p-2   rounded-md text-xs"
                                     onClick={() => handleResolveRecord(record.id, newComment)}
-                                    disabled={isResolving || !newComment.trim()}
+                                    disabled={isResolving }
                                 >
                                     {isResolving ? (
                                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -729,22 +729,29 @@ const ReconciledTransactions: React.FC = () => {
                     batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
                 (statusFilter === 'all' || batch.status === statusFilter)
         );
-        if (sortField) {
-            filtered.sort((a, b) => {
-                const aValue = a[sortField];
-                const bValue = b[sortField];
-                if (typeof aValue === 'string' && typeof bValue === 'string') {
-                    return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-                } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-                    return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-                } else if (sortField === 'date') {
-                    const aDate = new Date(aValue).getTime();
-                    const bDate = new Date(bValue).getTime();
-                    return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
-                }
-                return 0;
-            });
-        }
+
+        // Sort by date in descending order (latest first) by default, or by selected sortField and sortDirection
+        filtered.sort((a, b) => {
+            if (!sortField) {
+                // Default sort by date in descending order
+                const aDate = new Date(a.date).getTime();
+                const bDate = new Date(b.date).getTime();
+                return bDate - aDate; // Latest date first
+            }
+            const aValue = a[sortField];
+            const bValue = b[sortField];
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+            } else if (sortField === 'date') {
+                const aDate = new Date(aValue).getTime();
+                const bDate = new Date(bValue).getTime();
+                return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
+            }
+            return 0;
+        });
+
         return filtered;
     }, [batches, searchTerm, statusFilter, selectedBatchWithRecords, sortField, sortDirection]);
 
@@ -994,7 +1001,7 @@ const ReconciledTransactions: React.FC = () => {
                                                             setLastSelectedBatchId(batch.id);
                                                             navigate(`/reconciliation/results/${batch.id}`);
                                                         }}
-                                                        className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 text-gray-700 text-xs"
+                                                        className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 bg-blue-600 p-1 text-white text-xs"
                                                     >
                                                         <Eye className="w-3 h-3 mr-1" />
                                                         View Details
@@ -1005,7 +1012,7 @@ const ReconciledTransactions: React.FC = () => {
                                                             size="xs"
                                                             onClick={handleRetryBatch}
                                                             disabled={isRetrying}
-                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700 text-xs"
+                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-white bg-blue-500 p-1 text-xs"
                                                         >
                                                             {isRetrying ? (
                                                                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1203,7 +1210,7 @@ const ReconciledTransactions: React.FC = () => {
                                             <td className="px-4 py-2">
                                                 <div className="flex items-center gap-1">
                                                     {record.resolved ? (
-                                                        <Badge className="bg-teal-500 text-white rounded-full text-xs">
+                                                        <Badge className="bg-gray-500 text-white rounded-full text-xs px-2 py-1">
                                                             <CheckCircle className="w-3 h-3 mr-1" />
                                                             Resolved
                                                         </Badge>
@@ -1211,7 +1218,7 @@ const ReconciledTransactions: React.FC = () => {
                                                         <Button
                                                             variant="outline"
                                                             size="xs"
-                                                            className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 text-gray-700 text-xs"
+                                                            className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 rounded-full bg-teal-500 px-2 py-1 text-white text-xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 debouncedHandleRowClick(record);

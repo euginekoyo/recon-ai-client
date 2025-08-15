@@ -189,7 +189,7 @@ const RoutesPage = () => {
                 }
             />
             <Route
-                path="/reconciliation/results/:batchId"
+                path="/reconciled/results/:batchId"
                 element={
                     <ProtectedRoute requiredPermission="VIEW_RECONCILED_TRANSACTIONS">
                         <DashboardLayout>

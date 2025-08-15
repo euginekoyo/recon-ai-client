@@ -1,88 +1,48 @@
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, Eye, GitMerge, CheckCircle, AlertTriangle, Clock, XCircle, FileText, TrendingUp, Users, Building2, MessageSquare, ThumbsUp, Loader2, Repeat, Code, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
-import { useGetBatchesQuery, useGetBatchQuery, useGetRecordsQuery, useRetryBatchMutation, useResolveRecordMutation } from '@/store/redux/reconciliationApi';
-import { useNavigate, useParams } from 'react-router-dom';
-import { debounce } from 'lodash';
+import {
+    Activity,
+    AlertTriangle,
+    ArrowDown,
+    ArrowUp,
+    BarChart3,
+    Building2,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Download,
+    Eye,
+    FileText,
+    Filter,
+    GitMerge,
+    Loader2,
+    MessageSquare,
+    MoreVertical,
+    RefreshCw,
+    Repeat,
+    Search,
+    Sparkles,
+    Target,
+    TrendingUp,
+    Users,
+    XCircle
+} from 'lucide-react';
 import ReportDownloader from '@/pages/Reconciled/ReportDownloader';
+import {
+    formatCurrency,
+    formatDate,
+    getFieldErrorStatus,
+    RecordModalProps,
+    useReconciliationLogic
+} from './ReconciledTransactionsLogic';
 
-interface BatchRecord {
-    id: string;
-    transactionId: string;
-    description: string;
-    amount: number;
-    date: string;
-    status: 'MATCHED' | 'UNMATCHED' | 'PARTIAL' | 'DUPLICATE' | 'MISSING';
-    confidence: number;
-    direction: string;
-    bankRecord?: {
-        id: string;
-        reference: string;
-        amount: number;
-        date: string;
-        description: string;
-        status: string;
-        direction: string;
-    };
-    systemRecord?: {
-        id: string;
-        reference: string;
-        amount: number;
-        date: string;
-        description: string;
-        status: string;
-        direction: string;
-    };
-    aiReasoning?: string;
-    flags: string[];
-    resolved: boolean;
-    resolutionComment: string[];
-    batchInfo?: {
-        id: string;
-        backofficeFile: string;
-        vendorFile: string;
-        status: string;
-        createdAt: string;
-        updatedAt: string;
-    };
-    displayData?: {
-        vendor: { core: Record<string, any>; raw: Record<string, any> };
-        backoffice: { core: Record<string, any>; raw: Record<string, any> };
-    };
-}
-
-interface ReconciliationBatch {
-    id: string;
-    date: string;
-    status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
-    totalRecords: number;
-    matchedRecords: number;
-    unmatchedRecords: number;
-    partialRecords: number;
-    anomalyCount: number;
-    matchRate: number;
-    bankFileName: string;
-    vendorFileName: string;
-    processingTime?: string;
-    records: BatchRecord[];
-    failureReason?: string;
-}
-
-interface RecordModalProps {
-    record: BatchRecord | null;
-    isOpen: boolean;
-    onClose: () => void;
-    onResolveRecord: (recordId: string, resolutionComment: string) => void;
-    onAddComment: (recordId: string, resolutionComment: string) => void;
-    isResolving: boolean;
-}
-
+// ErrorBoundary component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
     state = { hasError: false };
     static getDerivedStateFromError() {
@@ -91,8 +51,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     render() {
         if (this.state.hasError) {
             return (
-                <div className="text-rose-700 p-3 rounded-lg bg-rose-50">
-                    Error rendering component. Check console for details.
+                <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-lg p-4 text-center">
+                    <AlertTriangle className="w-6 h-6 text-red-500 mx-auto mb-1" />
+                    <p className="text-red-700 font-medium">Something went wrong</p>
+                    <p className="text-red-600 text-xs mt-1">Please refresh the page or contact support</p>
                 </div>
             );
         }
@@ -100,275 +62,86 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     }
 }
 
-const mapReconBatchToReconciliationBatch = (batch: any): ReconciliationBatch => {
-    const totalRecords = batch.processedRecords || 0;
-    return {
-        id: `RB-${batch.id}`,
-        date: batch.createdAt || new Date().toISOString(),
-        status: batch.status?.toUpperCase() === 'COMPLETED' ? 'DONE' : batch.status?.toUpperCase() === 'PROCESSING' ? 'RUNNING' : batch.status?.toUpperCase() === 'FAILED' ? 'FAILED' : 'PENDING',
-        totalRecords,
-        matchedRecords: 0,
-        unmatchedRecords: 0,
-        partialRecords: 0,
-        anomalyCount: 0,
-        matchRate: 0,
-        bankFileName: batch.backofficeFile?.split('/').pop() || 'Unknown File',
-        vendorFileName: batch.vendorFile?.split('/').pop() || 'Unknown File',
-        processingTime: batch.status?.toUpperCase() === 'COMPLETED' && batch.createdAt && batch.updatedAt ? calculateProcessingTime(batch.createdAt, batch.updatedAt) : undefined,
-        records: [],
-        failureReason: batch.failureReason,
-    };
-};
-
-const calculateProcessingTime = (createdAt: string, updatedAt: string): string => {
-    const start = new Date(createdAt);
-    const end = new Date(updatedAt);
-    const diffMs = end.getTime() - start.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const mins = Math.floor(diffSecs / 60);
-    const secs = diffSecs % 60;
-    return `${mins}m ${secs}s`;
-};
-
-const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
-    let displayData: any = {};
-    let vendorData: any = {};
-    let backofficeData: any = {};
-    try {
-        displayData = JSON.parse(record.displayData || '{}');
-    } catch (error) {
-        console.warn(`Failed to parse displayData for record ${record.id}`);
-    }
-    try {
-        vendorData = JSON.parse(record.vendorData || '{}');
-    } catch (error) {
-        console.warn(`Failed to parse vendorData for record ${record.id}`);
-    }
-    if (record.backofficeData) {
-        try {
-            backofficeData = JSON.parse(record.backofficeData);
-        } catch (error) {
-            console.warn(`Failed to parse backofficeData for record ${record.id}`);
-        }
-    }
-    const vendorCore = displayData?.vendor?.core || vendorData?.core || {};
-    const vendorRaw = displayData?.vendor?.raw || vendorData?.raw || {};
-    const backofficeCore = displayData?.backoffice?.core || backofficeData?.core || {};
-    const backofficeRaw = displayData?.backoffice?.raw || backofficeData?.raw || {};
-    let flags: string[] = [];
-    if (record.fieldFlags) {
-        try {
-            const parsedFlags = JSON.parse(record.fieldFlags);
-            if (typeof parsedFlags === 'object' && parsedFlags !== null) {
-                flags = Object.entries(parsedFlags).map(([key, value]) => `${key}: ${value}`);
-            }
-        } catch (error) {
-            console.warn(`Failed to parse fieldFlags for record ${record.id}`);
-        }
-    }
-    let aiReasoning: string | undefined;
-    if (record.discrepancies) {
-        try {
-            const parsedDiscrepancies = JSON.parse(record.discrepancies);
-            if (Array.isArray(parsedDiscrepancies)) {
-                aiReasoning = parsedDiscrepancies.join('; ');
-            } else if (typeof parsedDiscrepancies === 'string') {
-                aiReasoning = parsedDiscrepancies;
-            }
-        } catch (error) {
-            console.warn(`Failed to parse discrepancies for record ${record.id}: ${error}`);
-            aiReasoning = record.discrepancies;
-        }
-    }
-    const getStatus = (matchStatus: string): 'MATCHED' | 'UNMATCHED' | 'PARTIAL' | 'DUPLICATE' | 'MISSING' => {
-        const status = matchStatus?.toUpperCase();
-        if (status === 'MATCH' || status === 'FULL_MATCH') return 'MATCHED';
-        if (status === 'PARTIAL_MATCH') return 'PARTIAL';
-        if (status === 'MISMATCH') return 'UNMATCHED';
-        if (status === 'DUPLICATE') return 'DUPLICATE';
-        if (status === 'MISSING') return 'MISSING';
-        return 'UNMATCHED';
-    };
-    const resolutionComment = record.resolutionComment
-        ? Array.isArray(record.resolutionComment)
-            ? record.resolutionComment
-            : [record.resolutionComment]
-        : [];
-    return {
-        id: record.id.toString(),
-        transactionId: vendorCore.transaction_id || vendorRaw['Ref No'] || `TXN-${record.id}`,
-        description: vendorCore.description || vendorRaw.Details || 'Unknown Transaction',
-        amount: Number(vendorCore.amount || vendorRaw.Value) || 0,
-        date: vendorCore.date || vendorRaw['Transaction Date'] || new Date(record.createdAt).toISOString().split('T')[0],
-        status: getStatus(record.matchStatus),
-        confidence: record.confidence || 0,
-        direction: vendorCore.direction || vendorRaw['DR/CR'] || 'Unknown',
-        bankRecord: Object.keys(backofficeCore).length > 0 || Object.keys(backofficeRaw).length > 0 ? {
-            id: backofficeCore.transaction_id || backofficeRaw['Transaction ID'] || `BNK${record.id}`,
-            reference: backofficeCore.transaction_id || backofficeRaw['Transaction ID'] || '',
-            amount: Number(backofficeCore.amount || backofficeRaw.Amount) || 0,
-            date: backofficeCore.date || backofficeRaw.Date || '',
-            description: backofficeCore.description || backofficeRaw.Description || '',
-            status: backofficeCore.status || backofficeRaw.Status || '',
-            direction: backofficeCore.direction || backofficeRaw.Direction || 'Unknown',
-        } : undefined,
-        systemRecord: {
-            id: vendorCore.transaction_id || vendorRaw['Ref No'] || `SYS${record.id}`,
-            reference: vendorCore.transaction_id || vendorRaw['Ref No'] || '',
-            amount: Number(vendorCore.amount || vendorRaw.Value) || 0,
-            date: vendorCore.date || vendorRaw['Transaction Date'] || '',
-            description: vendorCore.description || vendorRaw.Details || '',
-            status: vendorCore.status || vendorRaw.Status || '',
-            direction: vendorCore.direction || vendorRaw['DR/CR'] || 'Unknown',
-        },
-        aiReasoning,
-        flags,
-        resolved: record.resolved || false,
-        resolutionComment,
-        batchInfo: record.batch ? {
-            id: `RB-${record.batch.id}`,
-            backofficeFile: record.batch.backofficeFile?.split('/').pop() || 'Unknown File',
-            vendorFile: record.batch.vendorFile?.split('/').pop() || 'Unknown File',
-            status: record.batch.status?.toUpperCase() === 'COMPLETED' ? 'DONE' : record.batch.status?.toUpperCase() === 'PROCESSING' ? 'RUNNING' : record.batch.status?.toUpperCase() === 'FAILED' ? 'FAILED' : 'PENDING',
-            createdAt: record.batch.createdAt || new Date().toISOString(),
-            updatedAt: record.batch.updatedAt || new Date().toISOString(),
-        } : undefined,
-        displayData,
-    };
-};
-
-const calculateBatchStats = (batch: ReconciliationBatch, records: BatchRecord[]): ReconciliationBatch => {
-    const matchedRecords = records.filter(r => r.status === 'MATCHED').length;
-    const unmatchedRecords = records.filter(r => r.status === 'UNMATCHED').length;
-    const partialRecords = records.filter(r => r.status === 'PARTIAL').length;
-    const duplicateRecords = records.filter(r => r.status === 'DUPLICATE').length;
-    const missingRecords = records.filter(r => r.status === 'MISSING').length;
-    const totalRecords = records.length || batch.totalRecords;
-    const matchRate = totalRecords > 0 ? Math.round((matchedRecords / totalRecords) * 100) : 0;
-    const anomalyCount = unmatchedRecords + partialRecords + duplicateRecords + missingRecords;
-    return {
-        ...batch,
-        totalRecords,
-        matchedRecords,
-        unmatchedRecords,
-        partialRecords,
-        anomalyCount,
-        matchRate,
-        records,
-    };
-};
-
-const escapeCsvValue = (value: string | number | undefined): string => {
-    if (value === undefined || value === null) return '';
-    const str = String(value);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-};
-
-const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
-    const problematicRecords = records.filter(r => ['UNMATCHED', 'PARTIAL', 'DUPLICATE', 'MISSING'].includes(r.status));
-    if (problematicRecords.length === 0) {
-        alert('No problematic records found to export.');
-        return;
-    }
-    const headers = [
-        'Transaction ID',
-        'Description',
-        'Amount',
-        'Date',
-        'Status',
-        'Confidence',
-        'Direction',
-        'AI Reasoning',
-        'Flags',
-        'Bank Record ID',
-        'Bank Record Reference',
-        'Bank Record Amount',
-        'Bank Record Date',
-        'Bank Record Description',
-        'System Record ID',
-        'System Record Reference',
-        'System Record Amount',
-        'System Record Date',
-        'System Record Description',
-        'Resolution Comments',
-    ];
-    const rows = problematicRecords.map(record => [
-        escapeCsvValue(record.transactionId),
-        escapeCsvValue(record.description),
-        escapeCsvValue(record.amount),
-        escapeCsvValue(record.date),
-        escapeCsvValue(record.status),
-        escapeCsvValue(record.confidence ? Math.round(record.confidence * 100) + '%' : 'N/A'),
-        escapeCsvValue(record.direction),
-        escapeCsvValue(record.aiReasoning),
-        escapeCsvValue(record.flags.join('; ')),
-        escapeCsvValue(record.bankRecord?.id),
-        escapeCsvValue(record.bankRecord?.reference),
-        escapeCsvValue(record.bankRecord?.amount),
-        escapeCsvValue(record.bankRecord?.date),
-        escapeCsvValue(record.bankRecord?.description),
-        escapeCsvValue(record.systemRecord?.id),
-        escapeCsvValue(record.systemRecord?.reference),
-        escapeCsvValue(record.systemRecord?.amount),
-        escapeCsvValue(record.systemRecord?.date),
-        escapeCsvValue(record.systemRecord?.description),
-        escapeCsvValue(record.resolutionComment.join('; ')),
-    ].join(','));
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `problematic_records_${batchId}_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-};
-
+// Status badge utility function
 const getStatusBadge = (status: string) => {
     const configs = {
-        DONE: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-        RUNNING: { color: 'bg-indigo-500 text-white', icon: Clock },
-        PENDING: { color: 'bg-amber-500 text-white', icon: Clock },
-        FAILED: { color: 'bg-rose-500 text-white', icon: XCircle },
-        MATCHED: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-        UNMATCHED: { color: 'bg-rose-500 text-white', icon: XCircle },
-        PARTIAL: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
-        DUPLICATE: { color: 'bg-purple-500 text-white', icon: AlertTriangle },
-        MISSING: { color: 'bg-gray-500 text-white', icon: AlertTriangle },
+        DONE: {
+            bg: 'bg-gradient-to-r from-emerald-100 to-green-100',
+            text: 'text-emerald-800',
+            border: 'border-emerald-200',
+            icon: CheckCircle,
+            dot: 'bg-emerald-500'
+        },
+        RUNNING: {
+            bg: 'bg-gradient-to-r from-blue-100 to-indigo-100',
+            text: 'text-blue-800',
+            border: 'border-blue-200',
+            icon: Clock,
+            dot: 'bg-blue-500'
+        },
+        PENDING: {
+            bg: 'bg-gradient-to-r from-amber-100 to-yellow-100',
+            text: 'text-amber-800',
+            border: 'border-amber-200',
+            icon: Clock,
+            dot: 'bg-amber-500'
+        },
+        FAILED: {
+            bg: 'bg-gradient-to-r from-red-100 to-rose-100',
+            text: 'text-red-800',
+            border: 'border-red-200',
+            icon: XCircle,
+            dot: 'bg-red-500'
+        },
+        MATCHED: {
+            bg: 'bg-gradient-to-r from-emerald-100 to-green-100',
+            text: 'text-emerald-800',
+            border: 'border-emerald-200',
+            icon: CheckCircle,
+            dot: 'bg-emerald-500'
+        },
+        UNMATCHED: {
+            bg: 'bg-gradient-to-r from-red-100 to-rose-100',
+            text: 'text-red-800',
+            border: 'border-red-200',
+            icon: XCircle,
+            dot: 'bg-red-500'
+        },
+        PARTIAL: {
+            bg: 'bg-gradient-to-r from-amber-100 to-yellow-100',
+            text: 'text-amber-800',
+            border: 'border-amber-200',
+            icon: AlertTriangle,
+            dot: 'bg-amber-500'
+        },
+        DUPLICATE: {
+            bg: 'bg-gradient-to-r from-purple-100 to-violet-100',
+            text: 'text-purple-800',
+            border: 'border-purple-200',
+            icon: AlertTriangle,
+            dot: 'bg-purple-500'
+        },
+        MISSING: {
+            bg: 'bg-gradient-to-r from-gray-100 to-slate-100',
+            text: 'text-gray-800',
+            border: 'border-gray-200',
+            icon: AlertTriangle,
+            dot: 'bg-gray-500'
+        },
     };
-    const config = configs[status] || { color: 'bg-gray-500 text-white', icon: Clock };
+    const config = configs[status] || configs.PENDING;
     const Icon = config.icon;
     return (
-        <Badge className={`${config.color} font-medium px-2 py-0.5 rounded-full flex items-center gap-1 text-xs`}>
-            <Icon className="w-3 h-3" />
+        <Badge
+            className={`${config.bg} ${config.text} ${config.border} border font-medium px-2 py-1 rounded-full flex items-center gap-1 text-xs shadow-sm`}
+        >
+            <div className={`w-1.5 h-1.5 rounded-full ${config.dot} animate-pulse`} />
             {status}
         </Badge>
     );
 };
 
-const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-};
-
-const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
-
-const getFieldErrorStatus = (field: string, record: BatchRecord): boolean => {
-    return record.flags.some(flag => flag.toLowerCase().includes(field.toLowerCase()));
-};
-
+// Transaction Modal component
 const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                                                      record,
                                                                      isOpen,
@@ -392,7 +165,6 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
             alert('Please provide a resolution comment.');
             return;
         }
-        console.log(`Resolving record ${recordId} with comment: ${resolutionComment}`);
         onResolveRecord(recordId, resolutionComment);
         setNewComment('');
     }, [onResolveRecord]);
@@ -402,7 +174,6 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
             alert('Please provide a comment.');
             return;
         }
-        console.log(`Adding comment to record ${recordId}: ${resolutionComment}`);
         onAddComment(recordId, resolutionComment);
         setNewComment('');
     }, [onAddComment]);
@@ -410,25 +181,33 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
     const renderDataTable = (data: Record<string, any>, title: string, type: 'vendor' | 'backoffice') => {
         if (!data) return null;
         return (
-            <div className="space-y-1">
-                <h4 className="font-semibold text-gray-800 text-sm">{title}</h4>
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse bg-white rounded-md shadow-sm border border-gray-200">
+            <div className="space-y-2">
+                <h4 className="font-semibold text-gray-800 text-xs flex items-center gap-1">
+                    <div className="p-1.5 bg-indigo-500 rounded-md">
+                        <FileText className="w-3 h-3 text-white" />
+                    </div>
+                    {title}
+                </h4>
+                <div className="overflow-x-auto bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200">
+                    <table className="w-full">
                         <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Field</th>
-                            <th className="px-3 py-1 text-left text-xs font-semibold text-gray-700">Value</th>
+                        <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b border-gray-200">
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Field</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Value</th>
                         </tr>
                         </thead>
                         <tbody>
                         {Object.entries(data).map(([key, value]) => (
-                            <tr key={key} className="border-b border-gray-100 last:border-b-0">
-                                <td className="px-3 py-1 text-xs">
-                                    <span className={getFieldErrorStatus(key, record!) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
+                            <tr key={key} className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50/30 transition-colors">
+                                <td className="px-3 py-2 text-xs">
+                                    <span
+                                        className={getFieldErrorStatus(key, record!) ? 'text-red-600 font-medium flex items-center gap-1' : 'text-gray-600'}
+                                    >
+                                      {getFieldErrorStatus(key, record!) && <AlertTriangle className="w-2.5 h-2.5" />}
                                         {key}
                                     </span>
                                 </td>
-                                <td className="px-3 py-1 text-xs text-gray-800">
+                                <td className="px-3 py-2 text-xs text-gray-800 font-mono">
                                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                 </td>
                             </tr>
@@ -446,169 +225,169 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
 
     return createPortal(
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-2xl bg-white border-none shadow-lg rounded-md transition-all duration-300">
-                <DialogHeader className="bg-gray-50 p-3 rounded-t-md">
-                    <DialogTitle className="text-base font-semibold text-gray-800">
-                        Transaction Detail: {record.transactionId}
+            <DialogContent
+                className="sm:max-w-4xl bg-white border-none shadow-xl rounded-lg transition-all duration-300 max-h-[80vh] overflow-hidden"
+            >
+                <DialogHeader className="bg-blue-500 p-4 rounded-t-lg text-white">
+                    <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+                        <div className="p-1.5 bg-white/20 rounded-md">
+                            <FileText className="w-4 h-4" />
+                        </div>
+                        Transaction Details: {record.transactionId}
                     </DialogTitle>
                 </DialogHeader>
-                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     {record.batchInfo && (
-                        <div className="space-y-3">
-                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                <GitMerge className="w-3 h-3 mr-1 text-indigo-600" /> Batch Information
+                        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-200">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-1 mb-3">
+                                <div className="p-1.5 bg-indigo-500 rounded-md">
+                                    <GitMerge className="w-3 h-3 text-white" />
+                                </div>
+                                Batch Information
                             </h4>
-                            <div className="bg-gray-50 p-3 rounded-md space-y-1 border border-gray-200">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Batch ID:</span>
-                                    <span className="font-mono text-gray-800">{record.batchInfo.id || 'N/A'}</span>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Batch ID:</span>
+                                        <span className="font-mono text-gray-800 bg-white px-1.5 py-1 rounded-md text-xs">{record.batchInfo.id || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Status:</span>
+                                        {getStatusBadge(record.batchInfo.status || 'PENDING')}
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Created:</span>
+                                        <span className="text-gray-800">{formatDate(record.batchInfo.createdAt || new Date().toISOString())}</span>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Bank File:</span>
-                                    <span className="text-gray-800">{record.batchInfo.backofficeFile || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Vendor File:</span>
-                                    <span className="text-gray-800">{record.batchInfo.vendorFile || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Status:</span>
-                                    {getStatusBadge(record.batchInfo.status || 'PENDING')}
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Created At:</span>
-                                    <span className="text-gray-800">{formatDate(record.batchInfo.createdAt || new Date().toISOString())}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-600">Updated At:</span>
-                                    <span className="text-gray-800">{formatDate(record.batchInfo.updatedAt || new Date().toISOString())}</span>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Bank File:</span>
+                                        <span className="text-gray-800 bg-white px-1.5 py-1 rounded-md text-xs">{record.batchInfo.backofficeFile || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Vendor File:</span>
+                                        <span className="text-gray-800 bg-white px-1.5 py-1 rounded-md text-xs">{record.batchInfo.vendorFile || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-gray-600 font-medium">Updated:</span>
+                                        <span className="text-gray-800">{formatDate(record.batchInfo.updatedAt || new Date().toISOString())}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                <Building2 className="w-3 h-3 mr-1 text-teal-600" /> Bank Record
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-teal-200">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-1 mb-3">
+                                <div className="p-1.5 bg-teal-500 rounded-md">
+                                    <Building2 className="w-3 h-3 text-white" />
+                                </div>
+                                Backoffice Record
                             </h4>
                             {record.bankRecord ? (
-                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">ID:</span>
-                                        <span className="font-mono text-gray-800">{record.bankRecord.id || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Reference:</span>
-                                        <span className="font-mono text-gray-800">{record.bankRecord.reference || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Amount:</span>
-                                        <span className="font-semibold text-gray-800">{formatCurrency(record.bankRecord.amount || 0)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Date:</span>
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                        <span className="text-gray-600 font-medium">ID:</span>
+                                        <span className="font-mono text-gray-800 px-1.5 py-1 rounded-md text-xs">{record.bankRecord.id || 'N/A'}</span>
+                                        <span className="text-gray-600 font-medium">Amount:</span>
+                                        <span className="font-semibold text-teal-700">{formatCurrency(record.bankRecord.amount || 0)}</span>
+                                        <span className="text-gray-600 font-medium">Date:</span>
                                         <span className="text-gray-800">{record.bankRecord.date || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className={getFieldErrorStatus('description', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                            Description
-                                        </span>
-                                        <span className="text-gray-800">{record.bankRecord.description || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                            Status
-                                        </span>
-                                        <span className="text-gray-800">{record.bankRecord.status || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Direction:</span>
+                                        <span className="text-gray-600 font-medium">Direction:</span>
                                         <span className="text-gray-800">{record.bankRecord.direction || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex-row flex grid grid-cols-2">
+                                        <span
+                                            className={`${
+                                                getFieldErrorStatus('description', record) ? 'text-red-600 font-medium flex items-center' : 'text-gray-600 font-medium'
+                                            } text-xs block mb-1`}
+                                        >
+                                          {getFieldErrorStatus('description', record) && <AlertTriangle className="w-2.5 h-2.5" />}
+                                            Description:
+                                        </span>
+                                        <div className="p-2 rounded-lg text-xs text-gray-800">{record.bankRecord.description || 'N/A'}</div>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
-                                    No bank record found
+                                <div className="text-center py-6 text-gray-500">
+                                    <Building2 className="w-10 h-10 mx-auto mb-1 opacity-50" />
+                                    <p>No backoffice record found</p>
                                 </div>
                             )}
                         </div>
-                        <div className="space-y-3">
-                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                <Users className="w-3 h-3 mr-1 text-blue-600" /> System Record
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-1 mb-3">
+                                <div className="p-1.5 bg-blue-500 rounded-md">
+                                    <Users className="w-3 h-3 text-white" />
+                                </div>
+                                Vendor Record
                             </h4>
                             {record.systemRecord ? (
-                                <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">ID:</span>
-                                        <span className="font-mono text-gray-800">{record.systemRecord.id || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Reference:</span>
-                                        <span className="font-mono text-gray-800">{record.systemRecord.reference || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Amount:</span>
-                                        <span className="font-semibold text-gray-800">{formatCurrency(record.systemRecord.amount || 0)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Date:</span>
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                        <span className="text-gray-600 font-medium">ID:</span>
+                                        <span className="font-mono text-gray-800 px-1.5 py-1 rounded-md text-xs">{record.systemRecord.id || 'N/A'}</span>
+                                        <span className="text-gray-600 font-medium">Amount:</span>
+                                        <span className="font-semibold text-blue-700">{formatCurrency(record.systemRecord.amount || 0)}</span>
+                                        <span className="text-gray-600 font-medium">Date:</span>
                                         <span className="text-gray-800">{record.systemRecord.date || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className={getFieldErrorStatus('description', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                            Description
-                                        </span>
-                                        <span className="text-gray-800">{record.systemRecord.description || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className={getFieldErrorStatus('status', record) ? 'text-rose-600 font-medium' : 'text-gray-600'}>
-                                            Status
-                                        </span>
-                                        <span className="text-gray-800">{record.systemRecord.status || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-600">Direction:</span>
+                                        <span className="text-gray-600 font-medium">Direction:</span>
                                         <span className="text-gray-800">{record.systemRecord.direction || 'N/A'}</span>
+                                        <span
+                                            className={`${
+                                                getFieldErrorStatus('description', record) ? 'text-red-600 font-medium flex items-center gap-1' : 'text-gray-600 font-medium'
+                                            }`}
+                                        >
+                                          {getFieldErrorStatus('description', record) && <AlertTriangle className="w-2.5 h-2.5 mr-1" />}
+                                            Description:
+                                        </span>
+                                        <span className="p-2 rounded-lg text-gray-800 col-span-1">{record.systemRecord.description || 'N/A'}</span>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="bg-gray-50 p-3 rounded-md text-center text-gray-600 border border-gray-200 text-xs">
-                                    No system record found
+                                <div className="text-center py-6 text-gray-500">
+                                    <Users className="w-10 h-10 mx-auto mb-1 opacity-50" />
+                                    <p>No vendor record found</p>
                                 </div>
                             )}
                         </div>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
-                        onClick={() => setShowRawData(!showRawData)}
-                    >
-                        <Code className="w-3 h-3 mr-1" />
-                        {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
-                    </Button>
+                    <div className="flex justify-center">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowRawData(!showRawData)}
+                            className="border-2 border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 text-gray-700 rounded-lg px-4 py-2 transition-all"
+                        >
+                            <FileText className="w-3 h-3 mr-1" />
+                            {showRawData ? 'Hide Raw Data' : 'Show Raw Data'}
+                        </Button>
+                    </div>
                     {showRawData && record.displayData && (
-                        <div className="space-y-4">
-                            {renderDataTable(record.displayData.backoffice?.raw, 'Bank Raw Data', 'backoffice')}
+                        <div className="space-y-4 bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-200">
+                            {renderDataTable(record.displayData.backoffice?.raw, 'Backoffice Raw Data', 'backoffice')}
                             {renderDataTable(record.displayData.vendor?.raw, 'Vendor Raw Data', 'vendor')}
                         </div>
                     )}
                     {record.aiReasoning && (
-                        <div className="space-y-3">
-                            <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                                <AlertTriangle className="w-3 h-3 mr-1 text-purple-600" /> AI Match Reasoning
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-1 mb-3">
+                                <div className="p-1.5 bg-purple-500 rounded-md">
+                                    <Sparkles className="w-3 h-3 text-white" />
+                                </div>
+                                AI Match Reasoning
                             </h4>
-                            <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+                            <div className="bg-white rounded-lg p-3 border border-purple-200">
                                 {record.aiReasoning.split('; ').length > 1 ? (
-                                    <ul className="list-disc list-inside space-y-1 text-xs text-gray-700">
+                                    <ul className="space-y-1">
                                         {record.aiReasoning.split('; ').map((reason, index) => (
-                                            <li key={index} className="pl-1 flex items-center gap-1">
+                                            <li key={index} className="flex items-start gap-2 text-xs">
                                                 <Badge
-                                                    className={`${reason.includes('mismatch') ? 'bg-rose-500 text-white' : 'bg-purple-500 text-white'} rounded-full text-xs`}
+                                                    className={`${reason.includes('mismatch') ? 'bg-red-100 text-red-800 border-red-200' : 'bg-purple-100 text-purple-800 border-purple-200'} border text-xs shrink-0`}
                                                 >
                                                     {reason.includes('mismatch') ? 'Error' : 'Info'}
                                                 </Badge>
-                                                {reason}
+                                                <span className="text-gray-700">{reason}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -618,72 +397,71 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                             </div>
                         </div>
                     )}
-                    <div className="space-y-3">
-                        <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" /> Resolution Comments ({resolutionComments.length})
+                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-200">
+                        <h4 className="font-semibold text-gray-800 flex items-center gap-1 mb-3">
+                            <div className="p-1.5 bg-indigo-500 rounded-md">
+                                <MessageSquare className="w-3 h-3 text-white" />
+                            </div>
+                            Resolution Comments ({resolutionComments.length})
                         </h4>
                         <div className="space-y-2">
                             {resolutionComments.length > 0 && resolutionComments[0] !== null ? (
                                 resolutionComments.map((comment, i) => (
-                                    <div key={i} className="bg-gray-50 p-2 rounded-md text-xs text-gray-700 border border-gray-200">
-                                        {comment}
+                                    <div key={i} className="bg-white p-3 rounded-lg text-xs text-gray-700 border border-gray-200 shadow-sm">
+                                        <div className="flex items-start gap-1">
+                                            <MessageSquare className="w-3 h-3 text-indigo-500 mt-0.5 shrink-0" />
+                                            {comment}
+                                        </div>
                                     </div>
                                 ))
                             ) : (
-                                <p className="text-xs text-gray-600">No resolution comments</p>
+                                <div className="text-center py-4 text-gray-500">
+                                    <MessageSquare className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                    <p className="text-xs">No resolution comments yet</p>
+                                </div>
                             )}
                             <div className="flex gap-2">
                                 <Input
                                     placeholder="Enter resolution comment (required for resolution)"
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
-                                    className="h-8 text-xs"
+                                    className="flex-1 bg-white border-2 border-gray-200 rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-0 transition-colors"
                                 />
                                 <Button
-                                    size="sm"
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs"
                                     onClick={() => handleAddComment(record.id, newComment)}
                                     disabled={isResolving || !newComment.trim()}
+                                    className="bg-blue-500 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg px-4 py-2 transition-all shadow-md disabled:opacity-50"
                                 >
-                                    {isResolving ? (
-                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                    ) : (
-                                        <MessageSquare className="w-3 h-3 mr-1" />
-                                    )}
+                                    {isResolving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MessageSquare className="w-3 h-3 mr-1" />}
                                     Add Comment
                                 </Button>
                             </div>
                         </div>
                     </div>
-                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                        <div className="flex items-center gap-1">
+                    <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-gray-200">
+                        <div className="flex items-center gap-2">
                             {getStatusBadge(record.status)}
-                            <Badge className="bg-indigo-500 text-white rounded-full text-xs">
+                            <Badge className="bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-800 border border-indigo-200 rounded-full px-2 py-1">
+                                <Target className="w-2.5 h-2.5 mr-1" />
                                 {Math.round(record.confidence * 100)}% confidence
                             </Badge>
                             {record.resolved && (
-                                <Badge className="bg-gray-500 text-white rounded-full px-2 py-1 text-xs">
-                                    <CheckCircle className="w-3 h-3 mr-1" /> Resolved
+                                <Badge className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200 rounded-full px-2 py-1">
+                                    <CheckCircle className="w-2.5 h-2.5 mr-1" />
+                                    Resolved
                                 </Badge>
                             )}
                         </div>
-                        <div className="flex gap-1">
-                            {!record.resolved && (
-                                <Button
-                                    size="xs"
-                                    className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-md text-xs"
-                                    onClick={() => handleResolveRecord(record.id, newComment)}
-                                    disabled={isResolving || !newComment.trim()}
-                                >
-                                    {isResolving ? (
-                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                    ) : (
-                                        <CheckCircle className="w-3 h-3 mr-1" />
-                                    )}
-                                    Mark as Resolved
-                                </Button>
-                            )}
-                        </div>
+                        {!record.resolved && (
+                            <Button
+                                onClick={() => handleResolveRecord(record.id, newComment)}
+                                disabled={isResolving || !newComment.trim()}
+                                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg px-4 py-2 transition-all shadow-md disabled:opacity-50"
+                            >
+                                {isResolving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                                Mark as Resolved
+                            </Button>
+                        )}
                     </div>
                 </div>
             </DialogContent>
@@ -692,382 +470,296 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
     );
 });
 
+// MetricCard component
+const MetricCard: React.FC<{
+    title: string;
+    value: string;
+    subtitle?: string;
+    icon: React.ComponentType<{ className?: string }>;
+    gradient: string;
+}> = ({ title, value, subtitle, icon: Icon, gradient }) => (
+    <div className={`${gradient} rounded-lg p-4 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105`}>
+        <div className="flex items-center justify-between">
+            <div>
+                <p className="text-white/80 text-xs font-medium mb-1">{title}</p>
+                <p className="text-xl font-bold">{value}</p>
+                {subtitle && <p className="text-white/70 text-xs mt-1">{subtitle}</p>}
+            </div>
+            <div className="p-2 bg-white/20 rounded-md backdrop-blur-sm">
+                <Icon className="w-4 h-4" />
+            </div>
+        </div>
+    </div>
+);
+
+// Main ReconciledTransactions component
 const ReconciledTransactions: React.FC = () => {
     const navigate = useNavigate();
-    const { batchId } = useParams<{ batchId?: string }>();
-    const [selectedView, setSelectedView] = useState<'list' | 'details'>('list');
-    const [selectedBatch, setSelectedBatch] = useState<ReconciliationBatch | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('ALL');
-    const [recordStatusFilter, setRecordStatusFilter] = useState('ALL');
-    const [selectedRecord, setSelectedRecord] = useState<BatchRecord | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
-    const [sortField, setSortField] = useState<keyof ReconciliationBatch | null>(null);
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const { batchId } = useParams<{ batchId: string }>();
+    const {
+        selectedView,
+        setSelectedView,
+        selectedBatch,
+        setSelectedBatch,
+        searchTerm,
+        setSearchTerm,
+        statusFilter,
+        setStatusFilter,
+        recordStatusFilter,
+        setRecordStatusFilter,
+        selectedRecord,
+        setSelectedRecord,
+        isModalOpen,
+        setIsModalOpen,
+        lastSelectedBatchId,
+        setLastSelectedBatchId,
+        sortField,
+        sortDirection,
+        batches,
+        isBatchesLoading,
+        batchesError,
+        batchError,
+        recordsError,
+        isBatchLoading,
+        isRecordsLoading,
+        isRetrying,
+        isResolving,
+        filteredBatches,
+        filteredRecords,
+        selectedBatchWithRecords,
+        handleRetryBatch,
+        handleResolveRecord,
+        handleAddComment,
+        handleRefreshBatches,
+        debouncedHandleRowClick,
+        handleCloseModal,
+        handleExportIssues,
+        handleSort,
+        formatCurrency,
+        formatDate,
+    } = useReconciliationLogic();
 
-    const { data: batchesData, isLoading: isBatchesLoading, error: batchesError, refetch: refetchBatches } = useGetBatchesQuery();
-    const batches = useMemo(() => batchesData ? batchesData.map(mapReconBatchToReconciliationBatch) : [], [batchesData]);
-    const numericBatchId = useMemo(() => batchId ? parseInt(batchId.replace('RB-', '')) : undefined, [batchId]);
-    const { data: batchData, isLoading: isBatchLoading, error: batchError, refetch: refetchBatch } = useGetBatchQuery(numericBatchId!, { skip: !numericBatchId });
-    const { data: recordsData, isLoading: isRecordsLoading, error: recordsError, refetch: refetchRecords } = useGetRecordsQuery(
-        {
-            id: numericBatchId!,
-            status: recordStatusFilter !== 'ALL' ? recordStatusFilter : undefined,
-            resolved: undefined,
-        },
-        { skip: !numericBatchId },
-    );
-    const [retryBatch, { isLoading: isRetrying }] = useRetryBatchMutation();
-    const [resolveRecord, { isLoading: isResolving, error: resolveError }] = useResolveRecordMutation();
-
-    const selectedBatchWithRecords = useMemo(() => {
-        if (!batchData) return undefined;
-        const mappedBatch = mapReconBatchToReconciliationBatch(batchData);
-        if (!recordsData) return mappedBatch;
-        return calculateBatchStats(mappedBatch, recordsData.map(mapReconRecordToBatchRecord));
-    }, [batchData, recordsData]);
-
-    const filteredRecords = useMemo(() => {
-        return selectedBatchWithRecords?.records.filter(
-            (record) => recordStatusFilter === 'ALL' || record.status === recordStatusFilter
-        ) || [];
-    }, [selectedBatchWithRecords, recordStatusFilter]);
-
-    const filteredBatches = useMemo(() => {
-        const filtered = batches.map(batch => {
-            const matchingBatch = selectedBatchWithRecords && selectedBatchWithRecords.id === batch.id ? selectedBatchWithRecords : batch;
-            return {
-                ...matchingBatch,
-                totalRecords: matchingBatch.totalRecords,
-                matchedRecords: matchingBatch.matchedRecords,
-                unmatchedRecords: matchingBatch.unmatchedRecords,
-                partialRecords: matchingBatch.partialRecords,
-                matchRate: matchingBatch.matchRate,
-                anomalyCount: matchingBatch.anomalyCount,
-            };
-        }).filter(
-            (batch) =>
-                (batch.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    batch.bankFileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
-                (statusFilter === 'ALL' || batch.status === statusFilter)
-        );
-
-        filtered.sort((a, b) => {
-            if (!sortField) {
-                const aDate = new Date(a.date).getTime();
-                const bDate = new Date(b.date).getTime();
-                return bDate - aDate;
-            }
-            const aValue = a[sortField];
-            const bValue = b[sortField];
-            if (typeof aValue === 'string' && typeof bValue === 'string') {
-                return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-                return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-            } else if (sortField === 'date') {
-                const aDate = new Date(aValue).getTime();
-                const bDate = new Date(bValue).getTime();
-                return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
-            }
-            return 0;
-        });
-
-        return filtered;
-    }, [batches, searchTerm, statusFilter, selectedBatchWithRecords, sortField, sortDirection]);
-
+    // Sync selectedBatch with URL param on mount
     useEffect(() => {
-        if (batchId && batches.length) {
-            const batch = batches.find((b) => b.id === batchId);
-            if (batch && (selectedBatch?.id !== batch.id || selectedView !== 'details')) {
+        if (batchId && batches.length > 0) {
+            const batch = batches.find(b => b.id === batchId);
+            if (batch) {
                 setSelectedBatch(batch);
                 setSelectedView('details');
                 setLastSelectedBatchId(batch.id);
-            } else if (!batch) {
-                setSelectedView('list');
-                setSelectedBatch(null);
-                navigate('/reconciled', { replace: true });
+            } else {
+                // If batchId is invalid, redirect to list view
+                navigate('/reconciled');
             }
-        } else if (selectedView !== 'list' || selectedBatch !== null) {
+        } else if (!batchId) {
             setSelectedView('list');
             setSelectedBatch(null);
         }
-    }, [batchId, batches, selectedBatch, selectedView, navigate]);
+    }, [batchId, batches, setSelectedBatch, setSelectedView, setLastSelectedBatchId, navigate]);
 
-    useEffect(() => {
-        if (selectedView === 'list' && lastSelectedBatchId) {
-            const element = document.getElementById(`batch-row-${lastSelectedBatchId}`);
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-    }, [selectedView, lastSelectedBatchId]);
-
-    useEffect(() => {
-        if (resolveError) {
-            alert(`Failed to process action: ${resolveError.message || 'Unknown error'}`);
-        }
-    }, [resolveError]);
-
-    const handleRetryBatch = useCallback(async () => {
-        if (!numericBatchId) return;
-        try {
-            await retryBatch(numericBatchId).unwrap();
-            refetchBatch();
-            refetchRecords();
-        } catch (err) {
-            console.error('Failed to retry batch:', err);
-        }
-    }, [numericBatchId, retryBatch, refetchBatch, refetchRecords]);
-
-    const handleResolveRecord = useCallback(async (recordId: string, resolutionComment: string) => {
-        if (!resolutionComment.trim()) {
-            alert('Please provide a resolution comment.');
-            return;
-        }
-        try {
-            await resolveRecord({ id: parseInt(recordId), comment: resolutionComment, resolve: true }).unwrap();
-            setSelectedRecord(prev => prev ? {
-                ...prev,
-                resolved: true,
-                resolutionComment: [...prev.resolutionComment, resolutionComment]
-            } : null);
-            refetchRecords();
-            console.log(`Record ${recordId} resolved successfully with comment: ${resolutionComment}`);
-        } catch (err) {
-            console.error('Failed to resolve record:', err);
-            alert('Failed to resolve record. Please try again.');
-        }
-    }, [resolveRecord, refetchRecords]);
-
-    const handleAddComment = useCallback(async (recordId: string, resolutionComment: string) => {
-        if (!resolutionComment.trim()) {
-            alert('Please provide a comment.');
-            return;
-        }
-        try {
-            await resolveRecord({ id: parseInt(recordId), comment: resolutionComment, resolve: false }).unwrap();
-            setSelectedRecord(prev => prev ? {
-                ...prev,
-                resolutionComment: [...prev.resolutionComment, resolutionComment]
-            } : null);
-            refetchRecords();
-            console.log(`Comment added to record ${recordId}: ${resolutionComment}`);
-        } catch (err) {
-            console.error('Failed to add comment:', err);
-            alert('Failed to add comment. Please try again.');
-        }
-    }, [resolveRecord, refetchRecords]);
-
-    const handleRefreshBatches = useCallback(async () => {
-        try {
-            await refetchBatches();
-        } catch (err) {
-            console.error('Failed to refresh batches:', err);
-        }
-    }, [refetchBatches]);
-
-    const debouncedHandleRowClick = useCallback(
-        debounce((record: BatchRecord) => {
-            console.log('Row clicked for record:', record);
-            setSelectedRecord(record);
-            setIsModalOpen(true);
-        }, 300),
-        []
-    );
-
-    const handleCloseModal = useCallback(() => {
-        setSelectedRecord(null);
-        setIsModalOpen(false);
-    }, []);
-
-    const handleExportIssues = useCallback(() => {
-        if (selectedBatchWithRecords && selectedBatchWithRecords.records.length > 0) {
-            exportProblematicRecords(selectedBatchWithRecords.records, selectedBatchWithRecords.id);
-        } else {
-            alert('No records available to export.');
-        }
-    }, [selectedBatchWithRecords]);
-
-    const BatchesList = () => {
-        const handleSort = (field: keyof ReconciliationBatch) => {
-            if (sortField === field) {
-                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-            } else {
-                setSortField(field);
-                setSortDirection('asc');
-            }
-        };
-
+    const BatchesList: React.FC = () => {
         return (
-            <div className="space-y-4 animate-fade-in">
-                <div className="text-center space-y-2">
-                    <div className="inline-flex items-center justify-center p-2 rounded-full bg-indigo-100">
-                        <GitMerge className="w-5 h-5 text-indigo-600" />
+            <div className="space-y-6 animate-fade-in">
+                <div className="text-center space-y-3">
+                    <div className="inline-flex items-center justify-center p-3 rounded-lg bg-blue-500 shadow-md">
+                        <GitMerge className="w-6 h-6 text-white" />
                     </div>
-                    <h1 className="text-3xl font-bold text-gray-800">Reconciliation Batches</h1>
-                    <p className="text-base text-gray-600 max-w-xl mx-auto">
-                        Review and manage all reconciliation batches with detailed insights and status tracking.
-                    </p>
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 via-indigo-900 to-purple-900 bg-clip-text text-transparent">
+                        Reconciliation Dashboard
+                    </h1>
+
                 </div>
                 {isBatchesLoading && (
-                    <Card className="border-none bg-white shadow-md rounded-lg">
-                        <CardContent className="p-4 flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                            <span className="text-gray-700 font-medium text-sm">Loading batches...</span>
+                    <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
+                            <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
+                                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-base font-semibold text-gray-900 mb-1">Loading Batches</h3>
+                                <p className="text-gray-600 text-xs">Fetching your reconciliation data...</p>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
                 {batchesError && (
-                    <Card className="border-none bg-rose-50 shadow-md rounded-lg">
-                        <CardContent className="p-4 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-rose-600" />
-                            <span className="text-rose-700 font-medium text-sm">Failed to load batches. Please try again.</span>
+                    <Card className="border-none bg-gradient-to-r from-red-50 to-rose-50 shadow-md rounded-lg overflow-hidden">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
+                            <div className="p-3 bg-red-500 rounded-lg">
+                                <AlertTriangle className="h-6 w-6 text-white" />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-base font-semibold text-red-900 mb-1">Error Loading Batches</h3>
+                                <p className="text-red-700 text-xs">Failed to load reconciliation data. Please try again.</p>
+                                <Button
+                                    onClick={handleRefreshBatches}
+                                    className="mt-3 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2"
+                                >
+                                    <RefreshCw className="w-3 h-3 mr-1" />
+                                    Retry
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
                 {!isBatchesLoading && !batchesError && (
-                    <Card className="border-none bg-white shadow-md rounded-lg">
-                        <CardHeader>
-                            <CardTitle className="text-xl font-semibold text-gray-800">Batch History</CardTitle>
-                            <CardDescription className="text-gray-600 text-sm">
-                                View all reconciliation batches with summary statistics and status.
-                            </CardDescription>
+                    <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-gray-50 to-white p-6">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        <div className="p-1.5 bg-indigo-500 rounded-md">
+                                            <BarChart3 className="w-4 h-4 text-white" />
+                                        </div>
+                                        Batch Management
+                                    </CardTitle>
+                                    <CardDescription className="text-gray-600 text-xs mt-1">
+                                        Comprehensive overview of all reconciliation processes and their current status
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    onClick={handleRefreshBatches}
+                                    className="bg-blue-500 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg px-4 py-2 shadow-md transition-all"
+                                    disabled={isBatchesLoading}
+                                >
+                                    {isBatchesLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                                    Refresh Data
+                                </Button>
+                            </div>
                         </CardHeader>
-                        <CardContent className="p-4">
-                            <div className="flex flex-col lg:flex-row gap-3 mb-4">
+                        <CardContent className="p-6">
+                            <div className="flex flex-col lg:flex-row gap-3 mb-6">
                                 <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3 w-3" />
                                     <Input
-                                        placeholder="Search batch ID, file names..."
+                                        placeholder="Search batch ID, file names, or descriptions..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 h-9 rounded-md bg-gray-50 border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
+                                        className="pl-10 h-10 rounded-lg bg-gray-50 border-2 border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-0 transition-all"
                                     />
                                 </div>
                                 <div className="flex gap-2">
                                     <select
                                         value={statusFilter}
                                         onChange={(e) => setStatusFilter(e.target.value)}
-                                        className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
+                                        className="h-10 px-3 bg-gray-50 border-2 border-gray-200 rounded-lg text-gray-700 focus:bg-white focus:border-indigo-500 transition-all min-w-[120px]"
                                     >
                                         <option value="ALL">All Status</option>
                                         <option value="PENDING">Pending</option>
                                         <option value="RUNNING">Running</option>
-                                        <option value="DONE">Done</option>
+                                        <option value="DONE">Completed</option>
                                         <option value="FAILED">Failed</option>
                                     </select>
-                                    <Button
-                                        className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
-                                        onClick={handleRefreshBatches}
-                                        disabled={isBatchesLoading}
-                                    >
-                                        {isBatchesLoading ? (
-                                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                        ) : (
-                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                        )}
-                                        Refresh
-                                    </Button>
+
                                 </div>
                             </div>
-                        </CardContent>
-                        <CardContent className="p-0">
-                            <div className="overflow-x-auto">
+                            <div className="overflow-auto rounded-lg border-2 border-gray-200">
                                 <table className="w-full">
                                     <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('id')}>
-                                            <div className="flex items-center gap-1">
+                                    <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">
+                                            <button className="flex items-center gap-1 hover:text-indigo-600 transition-colors" onClick={() => handleSort('id')}>
                                                 Batch ID
                                                 {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                                            </div>
+                                            </button>
                                         </th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('date')}>
-                                            <div className="flex items-center gap-1">
-                                                Date
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">
+                                            <button className="flex items-center gap-1 hover:text-indigo-600 transition-colors" onClick={() => handleSort('date')}>
+                                                <Calendar className="w-3 h-3" />
+                                                Date & Time
                                                 {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                                            </div>
+                                            </button>
                                         </th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('status')}>
-                                            <div className="flex items-center gap-1">
-                                                Status
-                                                {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                                            </div>
-                                        </th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm cursor-pointer" onClick={() => handleSort('totalRecords')}>
-                                            <div className="flex items-center gap-1">
-                                                Records
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Status</th>
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">
+                                            <button className="flex items-center gap-1 hover:text-indigo-600 transition-colors" onClick={() => handleSort('totalRecords')}>
+                                                <BarChart3 className="w-3 h-3" />
+                                                Records & Match Rate
                                                 {sortField === 'totalRecords' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                                            </div>
+                                            </button>
                                         </th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Files</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Actions</th>
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Data Sources</th>
+                                        <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Actions</th>
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    {filteredBatches.map((batch) => (
+                                    {filteredBatches.map((batch, index) => (
                                         <tr
                                             key={batch.id}
                                             id={`batch-row-${batch.id}`}
-                                            className={`hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 ${lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''}`}
+                                            className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 border-b border-gray-100 group ${
+                                                index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                            } ${lastSelectedBatchId === batch.id ? 'bg-indigo-50/50' : ''}`}
                                         >
-                                            <td className="px-4 py-2 font-mono font-medium text-indigo-700 text-sm">{batch.id}</td>
-                                            <td className="px-4 py-2 text-gray-600 text-sm">{formatDate(batch.date)}</td>
-                                            <td className="px-4 py-2">{getStatusBadge(batch.status)}</td>
-                                            <td className="px-4 py-2">
-                                                <div className="space-y-0.5">
-                                                    <div className="text-xs font-medium text-gray-800">{batch.totalRecords.toLocaleString()} total</div>
-                                                    <div className="text-xs text-gray-600">
-                                                        {batch.matchedRecords} matched, {batch.unmatchedRecords} unmatched, {batch.partialRecords} partial
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 bg-blue-500 rounded-md">
+                                                        <FileText className="w-3 h-3 text-white" />
+                                                    </div>
+                                                    <span className="font-mono font-bold text-indigo-700 text-base">{batch.id}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div>
+                                                    <div className="font-semibold text-gray-900 text-xs">{formatDate(batch.date)}</div>
+                                                    {batch.processingTime && (
+                                                        <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                                                            <Clock className="w-2.5 h-2.5" />
+                                                            Processed in {batch.processingTime}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4">{getStatusBadge(batch.status)}</td>
+                                            <td className="px-4 py-4">
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-semibold text-gray-900 text-xs">{batch.totalRecords.toLocaleString()} total records</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2">
-                                                <div className="space-y-0.5 text-xs text-gray-600">
-                                                    <div className="flex items-center gap-1">
+                                            <td className="px-4 py-4">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-1 p-1.5 bg-teal-50 rounded-md border border-teal-200">
                                                         <Building2 className="w-3 h-3 text-teal-600" />
-                                                        {batch.bankFileName}
+                                                        <span className="text-xs font-medium text-teal-800 truncate">{batch.bankFileName}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-1">
+                                                    <div className="flex items-center gap-1 p-1.5 bg-blue-50 rounded-md border border-blue-200">
                                                         <Users className="w-3 h-3 text-blue-600" />
-                                                        {batch.vendorFileName}
+                                                        <span className="text-xs font-medium text-blue-800 truncate">{batch.vendorFileName}</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-2">
-                                                <div className="flex gap-1">
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                                     <Button
-                                                        variant="outline"
-                                                        size="xs"
                                                         onClick={() => {
                                                             setSelectedBatch(batch);
                                                             setSelectedView('details');
                                                             setLastSelectedBatchId(batch.id);
-                                                            navigate(`/reconciliation/results/${batch.id}`);
+                                                            navigate(`/reconciled/results/${batch.id}`);
                                                         }}
-                                                        className="border-gray-300 hover:bg-indigo-50 bg-teal-500 rounded-full hover:border-indigo-400 text-white p-1 text-xs"
+                                                        className="bg-blue-500 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg px-3 py-2 shadow-md transition-all"
                                                     >
                                                         <Eye className="w-3 h-3 mr-1" />
                                                         View Details
                                                     </Button>
                                                     {batch.status === 'FAILED' && (
                                                         <Button
-                                                            variant="outline"
-                                                            size="xs"
-                                                            onClick={handleRetryBatch}
+                                                            onClick={() => handleRetryBatch(batch.id)}
                                                             disabled={isRetrying}
-                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700 p-1 text-xs"
+                                                            className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-lg px-3 py-2 shadow-md transition-all disabled:opacity-50"
                                                         >
-                                                            {isRetrying ? (
-                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                            ) : (
-                                                                <Repeat className="w-3 h-3 mr-1" />
-                                                            )}
+                                                            {isRetrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Repeat className="w-3 h-3 mr-1" />}
                                                             Retry
                                                         </Button>
                                                     )}
+                                                    <Button
+                                                        variant="outline"
+                                                        className="border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg px-2 py-2 transition-all"
+                                                    >
+                                                        <MoreVertical className="w-3 h-3" />
+                                                    </Button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1075,7 +767,13 @@ const ReconciledTransactions: React.FC = () => {
                                     </tbody>
                                 </table>
                                 {filteredBatches.length === 0 && (
-                                    <div className="text-center py-6 text-gray-600 text-sm">No batches found matching your criteria.</div>
+                                    <div className="text-center py-8">
+                                        <div className="p-3 bg-gray-100 rounded-lg w-fit mx-auto mb-3">
+                                            <Search className="w-6 h-6 text-gray-400" />
+                                        </div>
+                                        <h3 className="text-base font-semibold text-gray-900 mb-1">No Batches Found</h3>
+                                        <p className="text-gray-600 text-xs">Try adjusting your search criteria or filters</p>
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
@@ -1085,12 +783,116 @@ const ReconciledTransactions: React.FC = () => {
         );
     };
 
-    const BatchDetails = () => {
+    const BatchDetails: React.FC = () => {
+        const [currentPage, setCurrentPage] = useState(1);
+        const recordsPerPage = 10;
+
         if (!selectedBatch || !selectedBatchWithRecords) return null;
+
+        const records = selectedBatchWithRecords.records;
+
+        // Reset currentPage to 1 when filteredRecords change
+        useEffect(() => {
+            setCurrentPage(1);
+        }, [filteredRecords]);
+
+        // Calculate pagination
+        const totalRecords = filteredRecords.length;
+        const totalPages = Math.ceil(totalRecords / recordsPerPage);
+        const indexOfLastRecord = currentPage * recordsPerPage;
+        const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
+        const currentRecords = filteredRecords.slice(indexOfFirstRecord, indexOfLastRecord);
+
+        // Handle page change
+        const handlePageChange = (page: number) => {
+            if (page >= 1 && page <= totalPages) {
+                setCurrentPage(page);
+                // Scroll to top of table
+                const table = document.querySelector('.overflow-hidden.rounded-lg.border-2.border-gray-200');
+                if (table) {
+                    table.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        };
+
+        const debitCreditSummary = useMemo(() => {
+            const debits = records.filter(r => r.direction.toLowerCase() === 'debit');
+            const credits = records.filter(r => r.direction.toLowerCase() === 'credit');
+            const totalAmount = records.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0);
+            const debitTotal = debits.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0);
+            const creditTotal = credits.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0);
+            return {
+                types: [
+                    {
+                        type: 'Debit',
+                        count: debits.length,
+                        totalAmount: formatCurrency(debitTotal),
+                        percent: totalAmount > 0 ? (debitTotal / totalAmount * 100).toFixed(2) + '%' : '0%',
+                        avgAmount: formatCurrency(debits.length > 0 ? debitTotal / debits.length : 0)
+                    },
+                    {
+                        type: 'Credit',
+                        count: credits.length,
+                        totalAmount: formatCurrency(creditTotal),
+                        percent: totalAmount > 0 ? (creditTotal / totalAmount * 100).toFixed(2) + '%' : '0%',
+                        avgAmount: formatCurrency(credits.length > 0 ? creditTotal / credits.length : 0)
+                    },
+                ],
+                netCreditPosition: formatCurrency(creditTotal - debitTotal),
+            };
+        }, [records]);
+
+        const reconciliationStats = useMemo(() => {
+            const statuses = ['MATCHED', 'PARTIAL', 'UNMATCHED', 'DUPLICATE', 'MISSING'];
+            const stats = statuses.map(status => {
+                const filtered = records.filter(r => r.status === status);
+                const count = filtered.length;
+                const percent = records.length > 0 ? (count / records.length * 100).toFixed(2) + '%' : '0%';
+                const totalAmount = formatCurrency(filtered.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0));
+                const avgConfidence = count > 0 ? (filtered.reduce((sum, r) => sum + r.confidence, 0) / count).toFixed(4) : '0.0000';
+                const avgAmount = formatCurrency(count > 0 ? filtered.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0) / count : 0);
+                return { status, count, percent, totalAmount, avgConfidence, avgAmount };
+            });
+            const totalStat = {
+                status: 'TOTAL',
+                count: records.length,
+                percent: '100%',
+                totalAmount: formatCurrency(records.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0)),
+                avgConfidence: '',
+                avgAmount: formatCurrency(records.length > 0 ? records.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0) / records.length : 0),
+            };
+            return [...stats.filter(s => s.count > 0 || statuses.includes(s.status)), totalStat];
+        }, [records]);
+
+        const discrepancyAnalysis = useMemo(() => {
+            const issueMap = new Map<string, { count: number, affectedAmount: number, examples: string[] }>();
+            records.forEach(record => {
+                if (record.aiReasoning) {
+                    const issues = record.aiReasoning.split('; ').map(i => i.trim().split(':')[0].trim());
+                    issues.forEach(issue => {
+                        const current = issueMap.get(issue) || { count: 0, affectedAmount: 0, examples: [] };
+                        current.count += 1;
+                        current.affectedAmount += record.bankRecord?.amount || 0;
+                        if (current.examples.length < 1) {
+                            current.examples.push(`${record.transactionId} / ${record.bankRecord?.id || 'N/A'}, ${record.aiReasoning}`);
+                        }
+                        issueMap.set(issue, current);
+                    });
+                }
+            });
+            return Array.from(issueMap.entries()).map(([issueType, data]) => ({
+                issueType,
+                count: data.count,
+                affectedAmount: formatCurrency(data.affectedAmount),
+                example: data.examples[0],
+                severity: issueType.toLowerCase().includes('description') ? 'Low' : 'Medium',
+            }));
+        }, [records]);
+
         return (
             <div className="space-y-4 animate-fade-in">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -1100,226 +902,439 @@ const ReconciledTransactions: React.FC = () => {
                                 setIsModalOpen(false);
                                 navigate('/reconciled');
                             }}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-md text-sm"
+                            className="border-2 border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-700 rounded-lg px-3 py-2"
                         >
                             ← Back to Batches
                         </Button>
                         <div>
-                            <h1 className="text-xl font-semibold text-gray-800">{selectedBatch.id}</h1>
-                            <p className="text-xs text-gray-600">Processed on {formatDate(selectedBatch.date)}</p>
+                            <p className="text-xs text-gray-600">Processed on {formatDate(selectedBatch.date)} | Status: {getStatusBadge(selectedBatch.status)}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        {getStatusBadge(selectedBatch.status)}
-                        {selectedBatchWithRecords.status === 'FAILED' && selectedBatchWithRecords.failureReason && (
-                            <Badge className="bg-rose-500 text-white rounded-full text-xs">{selectedBatchWithRecords.failureReason}</Badge>
-                        )}
+                    <div className="flex items-center gap-2">
                         <Button
-                            className="h-8 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-sm"
+                            className="bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-lg px-3 py-2"
                             onClick={handleExportIssues}
                         >
                             <Download className="h-3 w-3 mr-1" />
                             Export Issues
                         </Button>
-                        <ReportDownloader batchId={numericBatchId!.toString()} />
+                        <ReportDownloader batchId={selectedBatch.id} />
                     </div>
                 </div>
                 {(isBatchLoading || isRecordsLoading) && (
-                    <Card className="border-none bg-white shadow-md rounded-lg">
-                        <CardContent className="p-4 flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                            <span className="text-gray-700 font-medium text-sm">Loading batch details...</span>
-                        </CardContent>
-                    </Card>
-                )}
-                {(batchError || recordsError) && (
-                    <Card className="border-none bg-rose-50 shadow-md rounded-lg">
-                        <CardContent className="p-4 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-rose-600" />
-                            <span className="text-rose-700 font-medium text-sm">
-                                {batchError ? 'Failed to load batch details.' : 'Failed to Hawkins to load records.'} Please try again.
-                            </span>
-                        </CardContent>
-                    </Card>
-                )}
-                {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <Card className="border-none bg-white shadow-md rounded-md">
-                            <CardContent className="p-3 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 font-medium">Total Records</p>
-                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.totalRecords.toLocaleString()}</p>
-                                </div>
-                                <FileText className="w-5 h-5 text-indigo-600" />
-                            </CardContent>
-                        </Card>
-                        <Card className="border-none bg-white shadow-md rounded-md">
-                            <CardContent className="p-3 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 font-medium">Match Rate</p>
-                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.matchRate}%</p>
-                                </div>
-                                <TrendingUp className="w-5 h-5 text-teal-600" />
-                            </CardContent>
-                        </Card>
-                        <Card className="border-none bg-white shadow-md rounded-md">
-                            <CardContent className="p-3 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 font-medium">Anomalies</p>
-                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.anomalyCount}</p>
-                                </div>
-                                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                            </CardContent>
-                        </Card>
-                        <Card className="border-none bg-white shadow-md rounded-md">
-                            <CardContent className="p-3 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-gray-600 font-medium">Processing Time</p>
-                                    <p className="text-xl font-bold text-gray-800">{selectedBatchWithRecords.processingTime || 'N/A'}</p>
-                                </div>
-                                <Clock className="w-5 h-5 text-purple-600" />
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
-                {!isBatchLoading && !isRecordsLoading && !batchError && !recordsError && (
-                    <Card className="border-none bg-white shadow-md rounded-md">
-                        <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                    <h3 className="text-lg font-semibold text-gray-800">Transaction Records</h3>
-                                    <select
-                                        value={recordStatusFilter}
-                                        onChange={(e) => setRecordStatusFilter(e.target.value)}
-                                        className="h-8 px-2 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
-                                    >
-                                        <option value="ALL">All Records</option>
-                                        <option value="MATCHED">Match</option>
-                                        <option value="PARTIAL">Partial Match</option>
-                                        <option value="UNMATCHED">Mismatch</option>
-                                        <option value="DUPLICATE">Duplicate</option>
-                                        <option value="MISSING">Missing</option>
-                                    </select>
-                                </div>
-                                <Badge className="bg-indigo-500 text-white rounded-full text-xs">{filteredRecords.length} records</Badge>
+                    <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
+                            <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
+                                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-base font-semibold text-gray-900 mb-1">Loading Batch Details</h3>
+                                <p className="text-gray-600 text-xs">Fetching your reconciliation data...</p>
                             </div>
                         </CardContent>
-                        <CardContent className="p-0">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Transaction ID</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Description</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Amount</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Status</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Confidence</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Flags</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-gray-700 text-sm">Actions</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    {filteredRecords.map((record) => (
-                                        <tr
-                                            key={record.id}
-                                            className="hover:bg-indigo-50/30 transition-all duration-200 border-b border-gray-100 last:border-b-0 cursor-pointer"
-                                            onClick={() => debouncedHandleRowClick(record)}
+                    </Card>
+                )}
+                {batchError && (
+                    <Card className="border-none bg-gradient-to-r from-red-50 to-rose-50 shadow-md rounded-lg overflow-hidden">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
+                            <div className="p-3 bg-red-500 rounded-lg">
+                                <AlertTriangle className="h-6 w-6 text-white" />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-base font-semibold text-red-900 mb-1">Error Loading Batch</h3>
+                                <p className="text-red-700 text-xs">Failed to load batch details. Please try again.</p>
+                                <Button
+                                    onClick={handleRefreshBatches}
+                                    className="mt-3 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2"
+                                >
+                                    <RefreshCw className="w-3 h-3 mr-1" />
+                                    Retry
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                {!isBatchLoading && !isRecordsLoading && !batchError && (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {[
+                                {
+                                    title: 'Total Records',
+                                    value: records.length.toLocaleString(),
+                                    subtitle: 'All transactions in batch',
+                                    icon: FileText,
+                                    gradient: 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                                },
+                                {
+                                    title: 'Match Rate',
+                                    value: `${selectedBatch.matchRate}%`,
+                                    subtitle: 'Percentage of matched records',
+                                    icon: Target,
+                                    gradient: 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                                },
+                                {
+                                    title: 'Total Amount',
+                                    value: formatCurrency(records.reduce((sum, r) => sum + (r.bankRecord?.amount || 0), 0)),
+                                    subtitle: 'Sum of all transactions',
+                                    icon: TrendingUp,
+                                    gradient: 'bg-gradient-to-br from-amber-500 to-orange-600'
+                                },
+                                {
+                                    title: 'Processing Time',
+                                    value: selectedBatch.processingTime || 'N/A',
+                                    subtitle: 'Time taken for reconciliation',
+                                    icon: Clock,
+                                    gradient: 'bg-gradient-to-br from-blue-500 to-cyan-600'
+                                }
+                            ].map((metric, index) => (
+                                <MetricCard
+                                    key={index}
+                                    title={metric.title}
+                                    value={metric.value}
+                                    subtitle={metric.subtitle}
+                                    icon={metric.icon}
+                                    gradient={metric.gradient}
+                                />
+                            ))}
+                        </div>
+                        <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-gray-50 to-white p-6">
+                                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <div className="p-1.5 bg-indigo-500 rounded-md">
+                                        <BarChart3 className="w-4 h-4 text-white" />
+                                    </div>
+                                    Transaction Records
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 text-xs mt-1">
+                                    Detailed view of all transactions in this batch
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="flex flex-col lg:flex-row gap-3 mb-6">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3 w-3" />
+                                        <Input
+                                            placeholder="Search transaction ID, description..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="pl-10 h-10 rounded-lg bg-gray-50 border-2 border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-0 transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={recordStatusFilter}
+                                            onChange={(e) => setRecordStatusFilter(e.target.value)}
+                                            className="h-10 px-3 bg-gray-50 border-2 border-gray-200 rounded-lg text-gray-700 focus:bg-white focus:border-indigo-500 transition-all min-w-[120px]"
                                         >
-                                            <td className="px-4 py-2 font-mono text-indigo-700 text-sm">{record.transactionId}</td>
-                                            <td className="px-4 py-2 text-gray-800 text-sm">{record.description}</td>
-                                            <td className="px-4 py-2 font-semibold text-gray-800 text-sm">{formatCurrency(record.amount)}</td>
-                                            <td className="px-4 py-2">{getStatusBadge(record.status)}</td>
-                                            <td className="px-4 py-2">
-                                                <div className="flex items-center gap-1">
-                                                    <div className="flex-1 bg-gray-200 rounded-full h-1.5 w-12">
-                                                        <div
-                                                            className={`h-1.5 rounded-full transition-all duration-300 ${
-                                                                record.confidence > 0.8 ? 'bg-teal-500' : record.confidence > 0.5 ? 'bg-amber-500' : 'bg-rose-500'
-                                                            }`}
-                                                            style={{ width: `${record.confidence * 100}%` }}
-                                                        ></div>
-                                                    </div>
-                                                    <span className="text-xs text-gray-600">{Math.round(record.confidence * 100)}%</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-2">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {Array.isArray(record.flags) && record.flags.length > 0 ? (
-                                                        record.flags.map((flag, i) => (
-                                                            <Badge key={i} className="text-xs bg-rose-500 text-white rounded-full">
-                                                                {flag.replace(/_/g, ' ')}
-                                                            </Badge>
-                                                        ))
-                                                    ) : (
-                                                        <Badge className="text-xs bg-gray-500 text-white rounded-full">No Flags</Badge>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-2">
-                                                <div className="flex items-center gap-1">
-                                                    {record.resolved ? (
-                                                        <Badge className="bg-gray-500 text-white rounded-full text-xs px-2 py-1">
-                                                            <CheckCircle className="w-3 h-3 mr-1" />
-                                                            Resolved
-                                                        </Badge>
-                                                    ) : (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="xs"
-                                                            className="border-gray-300 hover:bg-teal-50 bg-teal-500 rounded-full hover:border-teal-400 text-white font-bold px-2 py-1 text-xs"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                debouncedHandleRowClick(record);
-                                                            }}
-                                                            disabled={isResolving}
-                                                        >
-                                                            {isResolving ? (
-                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                            ) : (
-                                                                <ThumbsUp className="w-3 h-3 mr-1" />
-                                                            )}
-                                                            Resolve
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </td>
+                                            <option value="ALL">All Status</option>
+                                            <option value="MATCHED">Matched</option>
+                                            <option value="PARTIAL">Partial</option>
+                                            <option value="UNMATCHED">Unmatched</option>
+                                            <option value="DUPLICATE">Duplicate</option>
+                                            <option value="MISSING">Missing</option>
+                                        </select>
+
+                                    </div>
+                                </div>
+                                <div className="overflow-hidden rounded-lg border-2 border-gray-200">
+                                    <table className="w-full">
+                                        <thead>
+                                        <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Transaction ID</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Description</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Amount</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Date</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Status</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Actions</th>
                                         </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                                {filteredRecords.length === 0 && (
-                                    <div className="text-center py-6 text-gray-600 text-sm">No records found matching your criteria.</div>
+                                        </thead>
+                                        <tbody>
+                                        {currentRecords.map((record, index) => (
+                                            <tr
+                                                key={record.id}
+                                                className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 border-b border-gray-100 ${
+                                                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                                }`}
+                                                onClick={() => debouncedHandleRowClick(record)}
+                                            >
+                                                <td className="px-4 py-4 font-mono text-indigo-700 text-xs">{record.transactionId}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{record.description}</td>
+                                                <td className="px-4 py-4 font-semibold text-teal-700 text-xs">{formatCurrency(record.amount)}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{formatDate(record.date)}</td>
+                                                <td className="px-4 py-4">{getStatusBadge(record.status)}</td>
+                                                <td className="px-4 py-4">
+                                                    <Button
+                                                        variant="outline"
+                                                        className="border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-lg px-3 py-2"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            debouncedHandleRowClick(record);
+                                                        }}
+                                                        aria-label={`View details for transaction ${record.transactionId}`}
+                                                    >
+                                                        <Eye className="w-3 h-3 mr-1" />
+                                                        View
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        </tbody>
+                                    </table>
+                                    {currentRecords.length === 0 && (
+                                        <div className="text-center py-8">
+                                            <div className="p-3 bg-gray-100 rounded-lg w-fit mx-auto mb-3">
+                                                <Search className="w-6 h-6 text-gray-400" />
+                                            </div>
+                                            <h3 className="text-base font-semibold text-gray-900 mb-1">No Records Found</h3>
+                                            <p className="text-gray-600 text-xs">Try adjusting your search criteria or filters</p>
+                                        </div>
+                                    )}
+                                </div>
+                                {totalRecords > recordsPerPage && (
+                                    <div className="flex justify-between items-center mt-4">
+                                        <div className="text-xs text-gray-600">
+                                            Showing {indexOfFirstRecord + 1} to {Math.min(indexOfLastRecord, totalRecords)} of {totalRecords} records
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-lg px-3 py-2 disabled:opacity-50"
+                                                aria-label="Go to previous page"
+                                            >
+                                                Previous
+                                            </Button>
+                                            <div className="flex gap-1">
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                    <Button
+                                                        key={page}
+                                                        variant={currentPage === page ? 'default' : 'outline'}
+                                                        onClick={() => handlePageChange(page)}
+                                                        className={`border-2 ${currentPage === page ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'} rounded-lg px-3 py-2`}
+                                                        aria-label={`Go to page ${page}`}
+                                                        aria-current={currentPage === page ? 'page' : undefined}
+                                                    >
+                                                        {page}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-lg px-3 py-2 disabled:opacity-50"
+                                                aria-label="Go to next page"
+                                            >
+                                                Next
+                                            </Button>
+                                        </div>
+                                    </div>
                                 )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-gray-50 to-white p-6">
+                                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <div className="p-1.5 bg-indigo-500 rounded-md">
+                                        <BarChart3 className="w-4 h-4 text-white" />
+                                    </div>
+                                    Reconciliation Statistics
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 text-xs mt-1">
+                                    Summary of transaction statuses and amounts
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="overflow-hidden rounded-lg border-2 border-gray-200">
+                                    <table className="w-full">
+                                        <thead>
+                                        <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Status</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Count</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Percentage</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Total Amount</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Avg Confidence</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Avg Amount</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {reconciliationStats.map((stat, index) => (
+                                            <tr
+                                                key={stat.status}
+                                                className={`border-b border-gray-100 last:border-b-0 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                                            >
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.status}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.count}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.percent}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.totalAmount}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.avgConfidence}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{stat.avgAmount}</td>
+                                            </tr>
+                                        ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-gray-50 to-white p-6">
+                                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <div className="p-1.5 bg-indigo-500 rounded-md">
+                                        <AlertTriangle className="w-4 h-4 text-white" />
+                                    </div>
+                                    Discrepancy Analysis
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 text-xs mt-1">
+                                    Breakdown of issues identified during reconciliation
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="overflow-hidden rounded-lg border-2 border-gray-200">
+                                    <table className="w-full">
+                                        <thead>
+                                        <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Issue Type</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Count</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Affected Amount</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Severity</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Example</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {discrepancyAnalysis.map((issue, index) => (
+                                            <tr
+                                                key={issue.issueType}
+                                                className={`border-b border-gray-100 last:border-b-0 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                                            >
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{issue.issueType}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{issue.count}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{issue.affectedAmount}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">
+                                                    <Badge
+                                                        className={`${issue.severity === 'Low' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'} border rounded-full px-2 py-1`}
+                                                    >
+                                                        {issue.severity}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs truncate max-w-xs">{issue.example}</td>
+                                            </tr>
+                                        ))}
+                                        </tbody>
+                                    </table>
+                                    {discrepancyAnalysis.length === 0 && (
+                                        <div className="text-center py-8">
+                                            <div className="p-3 bg-gray-100 rounded-lg w-fit mx-auto mb-3">
+                                                <AlertTriangle className="w-6 h-6 text-gray-400" />
+                                            </div>
+                                            <h3 className="text-base font-semibold text-gray-900 mb-1">No Discrepancies Found</h3>
+                                            <p className="text-gray-600 text-xs">All transactions reconciled successfully</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-none bg-white shadow-md rounded-lg overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-gray-50 to-white p-6">
+                                <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <div className="p-1.5 bg-indigo-500 rounded-md">
+                                        <TrendingUp className="w-4 h-4 text-white" />
+                                    </div>
+                                    Debit/Credit Summary
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 text-xs mt-1">
+                                    Overview of debit and credit transactions
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="overflow-hidden rounded-lg border-2 border-gray-200">
+                                    <table className="w-full">
+                                        <thead>
+                                        <tr className="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Type</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Count</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Total Amount</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Percentage</th>
+                                            <th className="px-4 py-3 text-left font-bold text-gray-900 text-xs">Avg Amount</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {debitCreditSummary.types.map((type, index) => (
+                                            <tr
+                                                key={type.type}
+                                                className={`border-b border-gray-100 last:border-b-0 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                                            >
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{type.type}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{type.count}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{type.totalAmount}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{type.percent}</td>
+                                                <td className="px-4 py-4 text-gray-800 text-xs">{type.avgAmount}</td>
+                                            </tr>
+                                        ))}
+                                        </tbody>
+                                        <tfoot>
+                                        <tr className="bg-gray-50 border-t-2 border-gray-200">
+                                            <td className="px-4 py-4 font-bold text-gray-900 text-xs">Net Credit Position</td>
+                                            <td className="px-4 py-4"></td>
+                                            <td className="px-4 py-4 font-bold text-gray-900 text-xs">{debitCreditSummary.netCreditPosition}</td>
+                                            <td className="px-4 py-4"></td>
+                                            <td className="px-4 py-4"></td>
+                                        </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </>
                 )}
             </div>
         );
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-6xl mx-auto">
-                {selectedView === 'list' ? <BatchesList /> : <BatchDetails />}
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+            <div className="max-w-6xl mx-auto p-4">
+                <ErrorBoundary>
+                    {selectedView === 'list' ? <BatchesList /> : <BatchDetails />}
+                </ErrorBoundary>
+                <ErrorBoundary>
+                    <TransactionModal
+                        record={selectedRecord}
+                        isOpen={isModalOpen}
+                        onClose={handleCloseModal}
+                        onResolveRecord={handleResolveRecord}
+                        onAddComment={handleAddComment}
+                        isResolving={isResolving}
+                    />
+                </ErrorBoundary>
             </div>
-            <ErrorBoundary>
-                <TransactionModal
-                    record={selectedRecord}
-                    isOpen={isModalOpen}
-                    onClose={handleCloseModal}
-                    onResolveRecord={handleResolveRecord}
-                    onAddComment={handleAddComment}
-                    isResolving={isResolving}
-                />
-            </ErrorBoundary>
             <style jsx>{`
                 @keyframes fade-in {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
                 .animate-fade-in {
-                    animation: fade-in 0.5s ease-out;
+                    animation: fade-in 0.6s ease-out;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: linear-gradient(to bottom, #6366f1, #8b5cf6);
+                    border-radius: 3px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: linear-gradient(to bottom, #4f46e5, #7c3aed);
                 }
             `}</style>
         </div>

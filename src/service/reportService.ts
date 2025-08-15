@@ -1,4 +1,3 @@
-
 import { config } from '@/config.ts';
 
 const api = {
@@ -35,6 +34,21 @@ export const downloadReport = async (batchId: string, reportType: 'summary' | 'd
         return response.blob();
     } catch (error) {
         console.error('Error downloading report:', error);
+        throw error;
+    }
+};
+
+export const downloadFile = async (batchId: string, fileType: 'vendor' | 'backoffice') => {
+    try {
+        const endpoint = `/api/recon/batches/${batchId}/download?fileType=${fileType}`;
+        const response = await api.get(endpoint, {
+            headers: {
+                'Content-Type': 'application/octet-stream',
+            },
+        });
+        return response.blob();
+    } catch (error) {
+        console.error(`Error downloading ${fileType} file:`, error);
         throw error;
     }
 };

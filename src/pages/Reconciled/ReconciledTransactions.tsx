@@ -18,7 +18,7 @@ interface BatchRecord {
     description: string;
     amount: number;
     date: string;
-    status: 'matched' | 'unmatched' | 'partial';
+    status: 'MATCHED' | 'UNMATCHED' | 'PARTIAL' | 'DUPLICATE' | 'MISSING';
     confidence: number;
     direction: string;
     bankRecord?: {
@@ -42,7 +42,7 @@ interface BatchRecord {
     aiReasoning?: string;
     flags: string[];
     resolved: boolean;
-    comments: string[];
+    resolutionComment: string[];
     batchInfo?: {
         id: string;
         backofficeFile: string;
@@ -60,7 +60,7 @@ interface BatchRecord {
 interface ReconciliationBatch {
     id: string;
     date: string;
-    status: 'pending' | 'running' | 'done' | 'failed';
+    status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
     totalRecords: number;
     matchedRecords: number;
     unmatchedRecords: number;
@@ -78,8 +78,8 @@ interface RecordModalProps {
     record: BatchRecord | null;
     isOpen: boolean;
     onClose: () => void;
-    onResolveRecord: (recordId: string, comment: string) => void;
-    onAddComment: (recordId: string, comment: string) => void;
+    onResolveRecord: (recordId: string, resolutionComment: string) => void;
+    onAddComment: (recordId: string, resolutionComment: string) => void;
     isResolving: boolean;
 }
 
@@ -105,7 +105,7 @@ const mapReconBatchToReconciliationBatch = (batch: any): ReconciliationBatch => 
     return {
         id: `RB-${batch.id}`,
         date: batch.createdAt || new Date().toISOString(),
-        status: batch.status?.toLowerCase() === 'completed' ? 'done' : batch.status?.toLowerCase() === 'processing' ? 'running' : batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
+        status: batch.status?.toUpperCase() === 'COMPLETED' ? 'DONE' : batch.status?.toUpperCase() === 'PROCESSING' ? 'RUNNING' : batch.status?.toUpperCase() === 'FAILED' ? 'FAILED' : 'PENDING',
         totalRecords,
         matchedRecords: 0,
         unmatchedRecords: 0,
@@ -114,7 +114,7 @@ const mapReconBatchToReconciliationBatch = (batch: any): ReconciliationBatch => 
         matchRate: 0,
         bankFileName: batch.backofficeFile?.split('/').pop() || 'Unknown File',
         vendorFileName: batch.vendorFile?.split('/').pop() || 'Unknown File',
-        processingTime: batch.status?.toLowerCase() === 'completed' && batch.createdAt && batch.updatedAt ? calculateProcessingTime(batch.createdAt, batch.updatedAt) : undefined,
+        processingTime: batch.status?.toUpperCase() === 'COMPLETED' && batch.createdAt && batch.updatedAt ? calculateProcessingTime(batch.createdAt, batch.updatedAt) : undefined,
         records: [],
         failureReason: batch.failureReason,
     };
@@ -180,12 +180,20 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
             aiReasoning = record.discrepancies;
         }
     }
-    const getStatus = (matchStatus: string): 'matched' | 'unmatched' | 'partial' => {
-        const status = matchStatus?.toLowerCase();
-        if (status?.includes('full') || status === 'matched') return 'matched';
-        if (status?.includes('partial')) return 'partial';
-        return 'unmatched';
+    const getStatus = (matchStatus: string): 'MATCHED' | 'UNMATCHED' | 'PARTIAL' | 'DUPLICATE' | 'MISSING' => {
+        const status = matchStatus?.toUpperCase();
+        if (status === 'MATCH' || status === 'FULL_MATCH') return 'MATCHED';
+        if (status === 'PARTIAL_MATCH') return 'PARTIAL';
+        if (status === 'MISMATCH') return 'UNMATCHED';
+        if (status === 'DUPLICATE') return 'DUPLICATE';
+        if (status === 'MISSING') return 'MISSING';
+        return 'UNMATCHED';
     };
+    const resolutionComment = record.resolutionComment
+        ? Array.isArray(record.resolutionComment)
+            ? record.resolutionComment
+            : [record.resolutionComment]
+        : [];
     return {
         id: record.id.toString(),
         transactionId: vendorCore.transaction_id || vendorRaw['Ref No'] || `TXN-${record.id}`,
@@ -216,12 +224,12 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
         aiReasoning,
         flags,
         resolved: record.resolved || false,
-        comments: record.comments || [],
+        resolutionComment,
         batchInfo: record.batch ? {
             id: `RB-${record.batch.id}`,
             backofficeFile: record.batch.backofficeFile?.split('/').pop() || 'Unknown File',
             vendorFile: record.batch.vendorFile?.split('/').pop() || 'Unknown File',
-            status: record.batch.status?.toLowerCase() === 'completed' ? 'done' : record.batch.status?.toLowerCase() === 'processing' ? 'running' : record.batch.status?.toLowerCase() === 'failed' ? 'failed' : 'pending',
+            status: record.batch.status?.toUpperCase() === 'COMPLETED' ? 'DONE' : record.batch.status?.toUpperCase() === 'PROCESSING' ? 'RUNNING' : record.batch.status?.toUpperCase() === 'FAILED' ? 'FAILED' : 'PENDING',
             createdAt: record.batch.createdAt || new Date().toISOString(),
             updatedAt: record.batch.updatedAt || new Date().toISOString(),
         } : undefined,
@@ -230,21 +238,22 @@ const mapReconRecordToBatchRecord = (record: any): BatchRecord => {
 };
 
 const calculateBatchStats = (batch: ReconciliationBatch, records: BatchRecord[]): ReconciliationBatch => {
-    const matchedRecords = records.filter(r => r.status === 'matched').length;
-    const unmatchedRecords = records.filter(r => r.status === 'unmatched').length;
-    const partialRecords = records.filter(r => r.status === 'partial').length;
+    const matchedRecords = records.filter(r => r.status === 'MATCHED').length;
+    const unmatchedRecords = records.filter(r => r.status === 'UNMATCHED').length;
+    const partialRecords = records.filter(r => r.status === 'PARTIAL').length;
+    const duplicateRecords = records.filter(r => r.status === 'DUPLICATE').length;
+    const missingRecords = records.filter(r => r.status === 'MISSING').length;
     const totalRecords = records.length || batch.totalRecords;
     const matchRate = totalRecords > 0 ? Math.round((matchedRecords / totalRecords) * 100) : 0;
-    const anomalyCount = unmatchedRecords + partialRecords;
-    console.log(`Calculating stats for batch ${batch.id}:`, { totalRecords, matchedRecords, unmatchedRecords, partialRecords, matchRate, anomalyCount });
+    const anomalyCount = unmatchedRecords + partialRecords + duplicateRecords + missingRecords;
     return {
         ...batch,
         totalRecords,
         matchedRecords,
         unmatchedRecords,
         partialRecords,
-        matchRate,
         anomalyCount,
+        matchRate,
         records,
     };
 };
@@ -259,7 +268,7 @@ const escapeCsvValue = (value: string | number | undefined): string => {
 };
 
 const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
-    const problematicRecords = records.filter(r => r.status === 'unmatched' || r.status === 'partial');
+    const problematicRecords = records.filter(r => ['UNMATCHED', 'PARTIAL', 'DUPLICATE', 'MISSING'].includes(r.status));
     if (problematicRecords.length === 0) {
         alert('No problematic records found to export.');
         return;
@@ -284,6 +293,7 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
         'System Record Amount',
         'System Record Date',
         'System Record Description',
+        'Resolution Comments',
     ];
     const rows = problematicRecords.map(record => [
         escapeCsvValue(record.transactionId),
@@ -305,6 +315,7 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
         escapeCsvValue(record.systemRecord?.amount),
         escapeCsvValue(record.systemRecord?.date),
         escapeCsvValue(record.systemRecord?.description),
+        escapeCsvValue(record.resolutionComment.join('; ')),
     ].join(','));
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -318,23 +329,24 @@ const exportProblematicRecords = (records: BatchRecord[], batchId: string) => {
     URL.revokeObjectURL(url);
 };
 
-// Utility functions moved outside component
 const getStatusBadge = (status: string) => {
     const configs = {
-        done: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-        running: { color: 'bg-indigo-500 text-white', icon: Clock },
-        pending: { color: 'bg-amber-500 text-white', icon: Clock },
-        failed: { color: 'bg-rose-500 text-white', icon: XCircle },
-        matched: { color: 'bg-teal-500 text-white', icon: CheckCircle },
-        unmatched: { color: 'bg-rose-500 text-white', icon: XCircle },
-        partial: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
+        DONE: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+        RUNNING: { color: 'bg-indigo-500 text-white', icon: Clock },
+        PENDING: { color: 'bg-amber-500 text-white', icon: Clock },
+        FAILED: { color: 'bg-rose-500 text-white', icon: XCircle },
+        MATCHED: { color: 'bg-teal-500 text-white', icon: CheckCircle },
+        UNMATCHED: { color: 'bg-rose-500 text-white', icon: XCircle },
+        PARTIAL: { color: 'bg-amber-500 text-white', icon: AlertTriangle },
+        DUPLICATE: { color: 'bg-purple-500 text-white', icon: AlertTriangle },
+        MISSING: { color: 'bg-gray-500 text-white', icon: AlertTriangle },
     };
-    const config = configs[status.toLowerCase()] || { color: 'bg-gray-500 text-white', icon: Clock };
+    const config = configs[status] || { color: 'bg-gray-500 text-white', icon: Clock };
     const Icon = config.icon;
     return (
         <Badge className={`${config.color} font-medium px-2 py-0.5 rounded-full flex items-center gap-1 text-xs`}>
             <Icon className="w-3 h-3" />
-            {status.charAt(0).toUpperCase() + status.slice(1)}
+            {status}
         </Badge>
     );
 };
@@ -375,18 +387,24 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
         }
     }, [record?.id]);
 
-    const handleResolveRecord = useCallback((recordId: string, comment: string) => {
-        if (!comment.trim()) {
+    const handleResolveRecord = useCallback((recordId: string, resolutionComment: string) => {
+        if (!resolutionComment.trim()) {
             alert('Please provide a resolution comment.');
             return;
         }
-        onResolveRecord(recordId, comment);
+        console.log(`Resolving record ${recordId} with comment: ${resolutionComment}`);
+        onResolveRecord(recordId, resolutionComment);
+        setNewComment('');
     }, [onResolveRecord]);
 
-    const handleAddComment = useCallback((recordId: string, comment: string) => {
-        if (comment.trim()) {
-            onAddComment(recordId, comment);
+    const handleAddComment = useCallback((recordId: string, resolutionComment: string) => {
+        if (!resolutionComment.trim()) {
+            alert('Please provide a comment.');
+            return;
         }
+        console.log(`Adding comment to record ${recordId}: ${resolutionComment}`);
+        onAddComment(recordId, resolutionComment);
+        setNewComment('');
     }, [onAddComment]);
 
     const renderDataTable = (data: Record<string, any>, title: string, type: 'vendor' | 'backoffice') => {
@@ -424,6 +442,8 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
 
     if (!record || !isOpen) return null;
 
+    const resolutionComments = Array.isArray(record.resolutionComment) ? record.resolutionComment : [record.resolutionComment];
+
     return createPortal(
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-2xl bg-white border-none shadow-lg rounded-md transition-all duration-300">
@@ -453,7 +473,7 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                 </div>
                                 <div className="flex justify-between text-xs">
                                     <span className="text-gray-600">Status:</span>
-                                    {getStatusBadge(record.batchInfo.status || 'pending')}
+                                    {getStatusBadge(record.batchInfo.status || 'PENDING')}
                                 </div>
                                 <div className="flex justify-between text-xs">
                                     <span className="text-gray-600">Created At:</span>
@@ -600,21 +620,21 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                     )}
                     <div className="space-y-3">
                         <h4 className="font-semibold text-gray-800 flex items-center text-sm">
-                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" /> Comments ({record.comments.length})
+                            <MessageSquare className="w-3 h-3 mr-1 text-indigo-600" /> Resolution Comments ({resolutionComments.length})
                         </h4>
                         <div className="space-y-2">
-                            {record.comments.length > 0 ? (
-                                record.comments.map((comment, i) => (
+                            {resolutionComments.length > 0 && resolutionComments[0] !== null ? (
+                                resolutionComments.map((comment, i) => (
                                     <div key={i} className="bg-gray-50 p-2 rounded-md text-xs text-gray-700 border border-gray-200">
                                         {comment}
                                     </div>
                                 ))
                             ) : (
-                                <p className="text-xs text-gray-600">No comments</p>
+                                <p className="text-xs text-gray-600">No resolution comments</p>
                             )}
                             <div className="flex gap-2">
                                 <Input
-                                    placeholder="Enter comment (required for resolution)"
+                                    placeholder="Enter resolution comment (required for resolution)"
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                     className="h-8 text-xs"
@@ -623,9 +643,13 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                                     size="sm"
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs"
                                     onClick={() => handleAddComment(record.id, newComment)}
-                                    // disabled={!newComment.trim()}
+                                    disabled={isResolving || !newComment.trim()}
                                 >
-                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                    {isResolving ? (
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : (
+                                        <MessageSquare className="w-3 h-3 mr-1" />
+                                    )}
                                     Add Comment
                                 </Button>
                             </div>
@@ -647,9 +671,9 @@ const TransactionModal: React.FC<RecordModalProps> = React.memo(({
                             {!record.resolved && (
                                 <Button
                                     size="xs"
-                                    className="bg-teal-600 hover:bg-teal-700 text-white p-2   rounded-md text-xs"
+                                    className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-md text-xs"
                                     onClick={() => handleResolveRecord(record.id, newComment)}
-                                    disabled={isResolving }
+                                    disabled={isResolving || !newComment.trim()}
                                 >
                                     {isResolving ? (
                                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -674,8 +698,8 @@ const ReconciledTransactions: React.FC = () => {
     const [selectedView, setSelectedView] = useState<'list' | 'details'>('list');
     const [selectedBatch, setSelectedBatch] = useState<ReconciliationBatch | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [recordStatusFilter, setRecordStatusFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [recordStatusFilter, setRecordStatusFilter] = useState('ALL');
     const [selectedRecord, setSelectedRecord] = useState<BatchRecord | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
@@ -689,13 +713,13 @@ const ReconciledTransactions: React.FC = () => {
     const { data: recordsData, isLoading: isRecordsLoading, error: recordsError, refetch: refetchRecords } = useGetRecordsQuery(
         {
             id: numericBatchId!,
-            status: recordStatusFilter !== 'all' ? recordStatusFilter.toUpperCase().replace('PARTIAL', 'PARTIAL_MATCH') : undefined,
+            status: recordStatusFilter !== 'ALL' ? recordStatusFilter : undefined,
             resolved: undefined,
         },
         { skip: !numericBatchId },
     );
     const [retryBatch, { isLoading: isRetrying }] = useRetryBatchMutation();
-    const [resolveRecord, { isLoading: isResolving }] = useResolveRecordMutation();
+    const [resolveRecord, { isLoading: isResolving, error: resolveError }] = useResolveRecordMutation();
 
     const selectedBatchWithRecords = useMemo(() => {
         if (!batchData) return undefined;
@@ -706,7 +730,7 @@ const ReconciledTransactions: React.FC = () => {
 
     const filteredRecords = useMemo(() => {
         return selectedBatchWithRecords?.records.filter(
-            (record) => recordStatusFilter === 'all' || record.status === recordStatusFilter
+            (record) => recordStatusFilter === 'ALL' || record.status === recordStatusFilter
         ) || [];
     }, [selectedBatchWithRecords, recordStatusFilter]);
 
@@ -727,16 +751,14 @@ const ReconciledTransactions: React.FC = () => {
                 (batch.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     batch.bankFileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     batch.vendorFileName.toLowerCase().includes(searchTerm.toLowerCase())) &&
-                (statusFilter === 'all' || batch.status === statusFilter)
+                (statusFilter === 'ALL' || batch.status === statusFilter)
         );
 
-        // Sort by date in descending order (latest first) by default, or by selected sortField and sortDirection
         filtered.sort((a, b) => {
             if (!sortField) {
-                // Default sort by date in descending order
                 const aDate = new Date(a.date).getTime();
                 const bDate = new Date(b.date).getTime();
-                return bDate - aDate; // Latest date first
+                return bDate - aDate;
             }
             const aValue = a[sortField];
             const bValue = b[sortField];
@@ -782,6 +804,12 @@ const ReconciledTransactions: React.FC = () => {
         }
     }, [selectedView, lastSelectedBatchId]);
 
+    useEffect(() => {
+        if (resolveError) {
+            alert(`Failed to process action: ${resolveError.message || 'Unknown error'}`);
+        }
+    }, [resolveError]);
+
     const handleRetryBatch = useCallback(async () => {
         if (!numericBatchId) return;
         try {
@@ -793,26 +821,44 @@ const ReconciledTransactions: React.FC = () => {
         }
     }, [numericBatchId, retryBatch, refetchBatch, refetchRecords]);
 
-    const handleResolveRecord = useCallback(async (recordId: string, comment: string) => {
-        if (!comment.trim()) {
+    const handleResolveRecord = useCallback(async (recordId: string, resolutionComment: string) => {
+        if (!resolutionComment.trim()) {
             alert('Please provide a resolution comment.');
             return;
         }
         try {
-            await resolveRecord({ id: parseInt(recordId), comment }).unwrap();
-            setSelectedRecord(prev => prev ? { ...prev, resolved: true, comments: [...prev.comments, comment] } : null);
+            await resolveRecord({ id: parseInt(recordId), comment: resolutionComment, resolve: true }).unwrap();
+            setSelectedRecord(prev => prev ? {
+                ...prev,
+                resolved: true,
+                resolutionComment: [...prev.resolutionComment, resolutionComment]
+            } : null);
             refetchRecords();
+            console.log(`Record ${recordId} resolved successfully with comment: ${resolutionComment}`);
         } catch (err) {
             console.error('Failed to resolve record:', err);
             alert('Failed to resolve record. Please try again.');
         }
     }, [resolveRecord, refetchRecords]);
 
-    const handleAddComment = useCallback((recordId: string, comment: string) => {
-        if (comment.trim()) {
-            setSelectedRecord(prev => prev ? { ...prev, comments: [...prev.comments, comment] } : null);
+    const handleAddComment = useCallback(async (recordId: string, resolutionComment: string) => {
+        if (!resolutionComment.trim()) {
+            alert('Please provide a comment.');
+            return;
         }
-    }, []);
+        try {
+            await resolveRecord({ id: parseInt(recordId), comment: resolutionComment, resolve: false }).unwrap();
+            setSelectedRecord(prev => prev ? {
+                ...prev,
+                resolutionComment: [...prev.resolutionComment, resolutionComment]
+            } : null);
+            refetchRecords();
+            console.log(`Comment added to record ${recordId}: ${resolutionComment}`);
+        } catch (err) {
+            console.error('Failed to add comment:', err);
+            alert('Failed to add comment. Please try again.');
+        }
+    }, [resolveRecord, refetchRecords]);
 
     const handleRefreshBatches = useCallback(async () => {
         try {
@@ -906,11 +952,11 @@ const ReconciledTransactions: React.FC = () => {
                                         onChange={(e) => setStatusFilter(e.target.value)}
                                         className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
                                     >
-                                        <option value="all">All Status</option>
-                                        <option value="pending">Pending</option>
-                                        <option value="running">Running</option>
-                                        <option value="done">Done</option>
-                                        <option value="failed">Failed</option>
+                                        <option value="ALL">All Status</option>
+                                        <option value="PENDING">Pending</option>
+                                        <option value="RUNNING">Running</option>
+                                        <option value="DONE">Done</option>
+                                        <option value="FAILED">Failed</option>
                                     </select>
                                     <Button
                                         className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
@@ -1001,18 +1047,18 @@ const ReconciledTransactions: React.FC = () => {
                                                             setLastSelectedBatchId(batch.id);
                                                             navigate(`/reconciliation/results/${batch.id}`);
                                                         }}
-                                                        className="border-gray-300 hover:bg-indigo-50 hover:border-indigo-400 bg-blue-600 p-1 text-white text-xs"
+                                                        className="border-gray-300 hover:bg-indigo-50 bg-teal-500 rounded-full hover:border-indigo-400 text-white p-1 text-xs"
                                                     >
                                                         <Eye className="w-3 h-3 mr-1" />
                                                         View Details
                                                     </Button>
-                                                    {batch.status === 'failed' && (
+                                                    {batch.status === 'FAILED' && (
                                                         <Button
                                                             variant="outline"
                                                             size="xs"
                                                             onClick={handleRetryBatch}
                                                             disabled={isRetrying}
-                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-white bg-blue-500 p-1 text-xs"
+                                                            className="border-gray-300 hover:bg-amber-50 hover:border-amber-400 text-gray-700 p-1 text-xs"
                                                         >
                                                             {isRetrying ? (
                                                                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1065,7 +1111,7 @@ const ReconciledTransactions: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-1">
                         {getStatusBadge(selectedBatch.status)}
-                        {selectedBatchWithRecords.status === 'failed' && selectedBatchWithRecords.failureReason && (
+                        {selectedBatchWithRecords.status === 'FAILED' && selectedBatchWithRecords.failureReason && (
                             <Badge className="bg-rose-500 text-white rounded-full text-xs">{selectedBatchWithRecords.failureReason}</Badge>
                         )}
                         <Button
@@ -1091,7 +1137,7 @@ const ReconciledTransactions: React.FC = () => {
                         <CardContent className="p-4 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-rose-600" />
                             <span className="text-rose-700 font-medium text-sm">
-                                {batchError ? 'Failed to load batch details.' : 'Failed to load records.'} Please try again.
+                                {batchError ? 'Failed to load batch details.' : 'Failed to Hawkins to load records.'} Please try again.
                             </span>
                         </CardContent>
                     </Card>
@@ -1147,10 +1193,12 @@ const ReconciledTransactions: React.FC = () => {
                                         onChange={(e) => setRecordStatusFilter(e.target.value)}
                                         className="h-8 px-2 bg-gray-50 border border-gray-200 rounded-md text-gray-700 focus:bg-white focus:border-indigo-500 transition-all text-sm"
                                     >
-                                        <option value="all">All Records</option>
-                                        <option value="matched">Matched</option>
-                                        <option value="unmatched">Unmatched</option>
-                                        <option value="partial">Partial Match</option>
+                                        <option value="ALL">All Records</option>
+                                        <option value="MATCHED">Match</option>
+                                        <option value="PARTIAL">Partial Match</option>
+                                        <option value="UNMATCHED">Mismatch</option>
+                                        <option value="DUPLICATE">Duplicate</option>
+                                        <option value="MISSING">Missing</option>
                                     </select>
                                 </div>
                                 <Badge className="bg-indigo-500 text-white rounded-full text-xs">{filteredRecords.length} records</Badge>
@@ -1218,7 +1266,7 @@ const ReconciledTransactions: React.FC = () => {
                                                         <Button
                                                             variant="outline"
                                                             size="xs"
-                                                            className="border-gray-300 hover:bg-teal-50 hover:border-teal-400 rounded-full bg-teal-500 px-2 py-1 text-white text-xs"
+                                                            className="border-gray-300 hover:bg-teal-50 bg-teal-500 rounded-full hover:border-teal-400 text-white font-bold px-2 py-1 text-xs"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 debouncedHandleRowClick(record);

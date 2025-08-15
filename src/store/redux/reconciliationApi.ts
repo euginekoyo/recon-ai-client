@@ -1,5 +1,6 @@
+
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import {config} from "@/config.ts";
+import { config } from '@/config.ts';
 
 interface ReconBatch {
     id: number;
@@ -37,27 +38,78 @@ interface BatchResponse {
     batchId: number;
 }
 
+interface StatusCounts {
+    MATCH: number;
+    PARTIAL_MATCH: number;
+    MISMATCH: number;
+    DUPLICATE: number;
+    MISSING: number;
+    [key: string]: number;
+}
+
+interface RefreshTokenResponse {
+    token: string;
+}
+
+const baseQuery = fetchBaseQuery({
+    baseUrl: config.apiBackendBaseUrl,
+    prepareHeaders: (headers) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        } else {
+            console.warn('No token found in localStorage');
+        }
+        return headers;
+    },
+    fetchFn: async (...args) => {
+        try {
+            const response = await fetch(...args);
+            if (response.status === 401) {
+                console.error('401 Unauthorized: Attempting to refresh token');
+                // Attempt to refresh token
+                const refreshResponse = await fetch(`${config.apiBackendBaseUrl}/api/auth/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('refreshToken') || ''}`,
+                    },
+                });
+                if (refreshResponse.ok) {
+                    const { token }: RefreshTokenResponse = await refreshResponse.json();
+                    localStorage.setItem('token', token);
+                    // Retry the original request with the new token
+                    const retryArgs = [...args];
+                    retryArgs[1].headers = {
+                        ...args[1].headers,
+                        Authorization: `Bearer ${token}`,
+                    };
+                    return await fetch(...retryArgs);
+                } else {
+                    console.error('Token refresh failed:', refreshResponse.status);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('refreshToken');
+                    window.location.href = '/login'; // Redirect to login
+                    throw new Error('Unauthorized: Please log in again');
+                }
+            }
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API request failed: ${response.status} - ${errorText}`);
+                throw new Error(`API error: ${response.status} - ${errorText}`);
+            }
+            return response;
+        } catch (error) {
+            console.error('API request error:', error);
+            throw error;
+        }
+    },
+});
+
 export const reconciliationApi = createApi({
     reducerPath: 'reconciliationApi',
-    baseQuery: fetchBaseQuery({
-        baseUrl: config.apiBackendBaseUrl,
-        prepareHeaders: (headers) => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                headers.set('Authorization', `Bearer ${token}`);
-            }
-            return headers;
-        },
-        fetchFn: async (...args) => {
-            try {
-                return await fetch(...args);
-            } catch (error) {
-                console.error('API request failed:', error);
-                throw error;
-            }
-        },
-    }),
-    tagTypes: ['Batches', 'Batch', 'Records'],
+    baseQuery,
+    tagTypes: ['Batches', 'Batch', 'Records', 'StatusCounts'],
     endpoints: (builder) => ({
         uploadReconciliationFiles: builder.mutation<
             BatchResponse,
@@ -82,7 +134,12 @@ export const reconciliationApi = createApi({
             providesTags: ['Batches'],
         }),
         getBatch: builder.query<ReconBatch, number>({
-            query: (id) => `/api/recon/batches/${id}`,
+            query: (id) => {
+                if (!Number.isInteger(id)) {
+                    throw new Error('Invalid batch ID');
+                }
+                return `/api/recon/batches/${id}`;
+            },
             providesTags: ['Batch'],
         }),
         getRecords: builder.query<
@@ -90,6 +147,9 @@ export const reconciliationApi = createApi({
             { id: number; status?: string; resolved?: boolean }
         >({
             query: ({ id, status, resolved }) => {
+                if (!Number.isInteger(id)) {
+                    throw new Error('Invalid batch ID');
+                }
                 const params = new URLSearchParams();
                 if (status) params.append('status', status);
                 if (resolved !== undefined) params.append('resolved', resolved.toString());
@@ -97,20 +157,41 @@ export const reconciliationApi = createApi({
             },
             providesTags: ['Records'],
         }),
+        getStatusCounts: builder.query<StatusCounts, number>({
+            query: (batchId) => {
+                if (!Number.isInteger(batchId)) {
+                    throw new Error('Invalid batch ID');
+                }
+                return `/api/recon/batches/${batchId}/status-counts`;
+            },
+            providesTags: (result, error, batchId) => [
+                { type: 'StatusCounts', id: batchId },
+            ],
+        }),
         retryBatch: builder.mutation<void, number>({
-            query: (id) => ({
-                url: `/api/recon/batches/${id}/retry`,
-                method: 'POST',
-            }),
-            invalidatesTags: ['Batch', 'Records'],
+            query: (id) => {
+                if (!Number.isInteger(id)) {
+                    throw new Error('Invalid batch ID');
+                }
+                return {
+                    url: `/api/recon/batches/${id}/retry`,
+                    method: 'POST',
+                };
+            },
+            invalidatesTags: ['Batch', 'Records', 'StatusCounts'],
         }),
         resolveRecord: builder.mutation<void, { id: number; comment: string }>({
-            query: ({ id, comment }) => ({
-                url: `/api/recon/records/${id}/resolve`,
-                method: 'POST',
-                body: { comment },
-            }),
-            invalidatesTags: ['Records'],
+            query: ({ id, comment }) => {
+                if (!Number.isInteger(id)) {
+                    throw new Error('Invalid record ID');
+                }
+                return {
+                    url: `/api/recon/records/${id}/resolve`,
+                    method: 'POST',
+                    body: { comment },
+                };
+            },
+            invalidatesTags: ['Records', 'StatusCounts'],
         }),
     }),
 });
@@ -120,6 +201,7 @@ export const {
     useGetBatchesQuery,
     useGetBatchQuery,
     useGetRecordsQuery,
+    useGetStatusCountsQuery,
     useRetryBatchMutation,
     useResolveRecordMutation,
 } = reconciliationApi;

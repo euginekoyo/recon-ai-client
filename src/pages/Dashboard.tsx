@@ -2,66 +2,125 @@ import React, {useMemo} from 'react';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
-import {
-  AlertTriangle,
-  Bell,
-  CheckCircle,
-  Clock,
-  Database,
-  Download,
-  Filter,
-  MoreHorizontal,
-  Target,
-  Upload,
-  Zap
-} from 'lucide-react';
+import {AlertTriangle, Bell, CheckCircle, Clock, Database, MoreHorizontal, Target, Upload, Zap,} from 'lucide-react';
 import {Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
+import {useGetBatchesQuery, useGetRecordsQuery, useGetStatusCountsQuery} from '@/store/redux/reconciliationApi';
+import {useNavigate} from 'react-router-dom';
 
-import {useGetBatchesQuery, useGetRecordsQuery} from '@/store/redux/reconciliationApi.ts';
+interface StatusCounts {
+  MATCH: number;
+  PARTIAL_MATCH: number;
+  MISMATCH: number;
+  DUPLICATE: number;
+  MISSING: number;
+}
 
-const Dashboard = () => {
+const StatusDashboard: React.FC<{ batchId: number }> = ({batchId}) => {
+  const {data: counts, isLoading, error} = useGetStatusCountsQuery(batchId);
+
+  if (isLoading) {
+    return (
+        <div className="flex items-center space-x-3 p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          <span className="text-slate-600 text-sm">Loading status counts...</span>
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="flex items-center space-x-3 p-4 text-red-600">
+          <AlertTriangle className="h-5 w-5"/>
+          <span className="text-sm font-medium">Failed to load status counts</span>
+        </div>
+    );
+  }
+
+  const statusLabels = {
+    MATCH: 'Match',
+    PARTIAL_MATCH: 'Partial Match',
+    MISMATCH: 'Mismatch',
+    DUPLICATE: 'Duplicate',
+    MISSING: 'Missing',
+  };
+
+  return (
+      <div className="status-cards grid grid-cols-2 md:grid-cols-5 gap-4">
+        {['MATCH', 'PARTIAL_MATCH', 'MISMATCH', 'DUPLICATE', 'MISSING'].map((status) => (
+            <div
+                key={status}
+                className={`status-card p-4 rounded-lg bg-white/50 backdrop-blur-sm border border-white/20 ${status.toLowerCase()}`}
+            >
+              <h3 className="text-sm font-medium text-slate-800">{statusLabels[status]}</h3>
+              <p className="text-xl font-bold text-slate-900">{counts?.[status] || 0} records</p>
+            </div>
+        ))}
+      </div>
+  );
+};
+
+const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { data: batchesData, isLoading: isBatchesLoading, error: batchesError } = useGetBatchesQuery();
-
-  // Get latest batch for records analysis
   const latestBatch = batchesData?.[0];
   const { data: recordsData, isLoading: isRecordsLoading } = useGetRecordsQuery(
       { id: latestBatch?.id || 0 },
       { skip: !latestBatch }
   );
 
-  // Calculate real metrics from actual data
   const metrics = useMemo(() => {
-    if (!batchesData || isBatchesLoading) return [];
+    if (!batchesData || isBatchesLoading || !recordsData || isRecordsLoading) {
+      return [
+        {
+          title: 'Total Batches',
+          value: 'N/A',
+          icon: Database,
+          description: 'processed batches',
+          color: 'from-blue-500 to-cyan-500',
+        },
+        {
+          title: 'Match Rate',
+          value: 'N/A',
+          icon: Target,
+          description: 'accuracy achieved',
+          color: 'from-emerald-500 to-green-500',
+        },
+        {
+          title: 'Anomalies',
+          value: 'N/A',
+          icon: AlertTriangle,
+          description: 'requiring review',
+          color: 'from-amber-500 to-orange-500',
+        },
+        {
+          title: 'Avg Processing',
+          value: 'N/A',
+          icon: Zap,
+          description: 'per batch',
+          color: 'from-purple-500 to-indigo-500',
+        },
+      ];
+    }
 
     const totalBatches = batchesData.length;
-    const completedBatches = batchesData.filter(b => b.status === 'COMPLETED').length;
+    const completedBatches = batchesData.filter((b) => b.status === 'COMPLETED').length;
 
+    const avgProcessingTime =
+        batchesData
+            .filter((b) => b.status === 'COMPLETED' && b.createdAt && b.updatedAt)
+            .reduce((sum, batch) => {
+              const start = new Date(batch.createdAt).getTime();
+              const end = new Date(batch.updatedAt).getTime();
+              return sum + (end - start);
+            }, 0) /
+        (completedBatches || 1) /
+        1000 /
+        60; // Convert to minutes
 
-    // Calculate average processing time for completed batches
-    const avgProcessingTime = batchesData
-        .filter(b => b.status === 'COMPLETED' && b.createdAt && b.updatedAt)
-        .reduce((sum, batch) => {
-          const start = new Date(batch.createdAt).getTime();
-          const end = new Date(batch.updatedAt).getTime();
-          return sum + (end - start);
-        }, 0) / (completedBatches || 1) / 1000 / 60; // Convert to minutes
-
-    // Calculate match rate from records if available
-    let matchRate = 'N/A';
-    let anomalies = 0;
-    if (batchesData && !isRecordsLoading) {
-      const allRecords = batchesData.flatMap(batch => batch.records || []);
-      const totalRecords = allRecords.length;
-      const matchedRecords = allRecords.filter(r =>
-          r.status==='COMPLETED'
-      ).length;
-
-      matchRate = totalRecords > 0
-          ? `${((matchedRecords / totalRecords) * 100).toFixed(1)}%`
-          : '0%';
-      anomalies = batchesData.filter(b => b.status === 'FAILED').length;
-
-    }
+    const totalRecords = recordsData.length;
+    const matchedRecords = recordsData.filter((r) => r.status === 'MATCH').length;
+    const matchRate = totalRecords > 0 ? ((matchedRecords / totalRecords) * 100).toFixed(1) + '%' : '0%';
+    const anomalies = batchesData.filter((r) => r.status === 'FAILED').length;
 
     return [
       {
@@ -69,37 +128,35 @@ const Dashboard = () => {
         value: totalBatches.toLocaleString(),
         icon: Database,
         description: 'processed batches',
-        color: 'from-blue-500 to-cyan-500'
+        color: 'from-blue-500 to-cyan-500',
       },
       {
         title: 'Match Rate',
         value: matchRate,
         icon: Target,
         description: 'accuracy achieved',
-        color: 'from-emerald-500 to-green-500'
+        color: 'from-emerald-500 to-green-500',
       },
       {
         title: 'Anomalies',
         value: anomalies.toLocaleString(),
         icon: AlertTriangle,
         description: 'requiring review',
-        color: 'from-amber-500 to-orange-500'
+        color: 'from-amber-500 to-orange-500',
       },
       {
         title: 'Avg Processing',
         value: avgProcessingTime > 0 ? `${avgProcessingTime.toFixed(1)}m` : 'N/A',
         icon: Zap,
         description: 'per batch',
-        color: 'from-purple-500 to-indigo-500'
-      }
+        color: 'from-purple-500 to-indigo-500',
+      },
     ];
   }, [batchesData, recordsData, isBatchesLoading, isRecordsLoading]);
 
-  // Generate trend data from batches
   const trendData = useMemo(() => {
     if (!batchesData) return [];
 
-    // Group batches by date for trend analysis
     const dateGroups = batchesData.reduce((acc, batch) => {
       const date = new Date(batch.createdAt).toISOString().split('T')[0];
       if (!acc[date]) {
@@ -107,53 +164,55 @@ const Dashboard = () => {
       }
       acc[date].batches += 1;
       acc[date].records += batch.processedRecords || 0;
-      if (batch.status === 'completed') acc[date].completed += 1;
+      if (batch.status === 'COMPLETED') acc[date].completed += 1;
       return acc;
-    }, {});
+    }, {} as Record<string, { batches: number; records: number; completed: number }>);
 
     return Object.entries(dateGroups)
         .map(([date, data]) => ({
           date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           batches: data.batches,
           records: data.records,
-          completionRate: data.batches > 0 ? (data.completed / data.batches * 100) : 0
+          completionRate: data.batches > 0 ? (data.completed / data.batches) * 100 : 0,
         }))
         .slice(-7); // Last 7 days
   }, [batchesData]);
 
-  // Status distribution for chart
   const statusData = useMemo(() => {
     if (!batchesData) return [];
 
     const statusCounts = batchesData.reduce((acc, batch) => {
       acc[batch.status] = (acc[batch.status] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
 
     return Object.entries(statusCounts).map(([status, count]) => ({
-      name: status.charAt(0).toUpperCase() + status.slice(1),
+      name: status.charAt(0).toUpperCase() + status.slice(1).toLowerCase(),
       value: count,
-      color: status === 'completed' ? '#10b981' :
-          status === 'processing' ? '#3b82f6' : '#ef4444'
+      color:
+          status.toUpperCase() === 'COMPLETED'
+              ? '#10b981'
+              : status.toUpperCase() === 'PROCESSING'
+                  ? '#3b82f6'
+                  : '#ef4444',
     }));
   }, [batchesData]);
 
-  // Recent activity from batches
   const recentActivity = useMemo(() => {
     if (!batchesData) return [];
 
     return [...batchesData]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5)
-        .map(batch => {
+        .map((batch) => {
           const timeAgo = Math.round((Date.now() - new Date(batch.createdAt).getTime()) / (1000 * 60));
           return {
             id: batch.id,
-            title: `Batch ${batch.id} - ${batch.backofficeFile?.split('/').pop()?.split('.')[0] || 'Unknown'}`,
+            title: `Batch RB-${batch.id} - ${batch.backofficeFile?.split('/').pop()?.split('.')[0] || 'Unknown'}`,
             description: `${(batch.processedRecords || 0).toLocaleString()} records processed`,
-            status: batch.status,
+            status: batch.status.toLowerCase(),
             time: timeAgo < 60 ? `${timeAgo}m ago` : `${Math.round(timeAgo / 60)}h ago`,
-            user: batch.createdBy || 'System'
+            user: batch.createdBy || 'System',
           };
         });
   }, [batchesData]);
@@ -195,17 +254,14 @@ const Dashboard = () => {
                 <p className="text-slate-600 text-sm">Real-time insights and system performance</p>
               </div>
               <div className="flex items-center space-x-3">
-                <Button variant="outline" size="sm" className="bg-white/50 backdrop-blur-sm">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
-                <Button variant="outline" size="sm" className="bg-white/50 backdrop-blur-sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-                <Button size="sm" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+
+                <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    onClick={() => navigate('/reconciled')}
+                >
                   <Upload className="h-4 w-4 mr-2" />
-                  New Batch
+                  View Batches
                 </Button>
               </div>
             </div>
@@ -215,11 +271,13 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
           {/* Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {metrics.map((metric, index) => {
+            {metrics.map((metric) => {
               const Icon = metric.icon;
-
               return (
-                  <Card key={metric.title} className="group relative overflow-hidden bg-white/60 backdrop-blur-sm border-white/20 hover:bg-white/80 transition-all duration-300">
+                  <Card
+                      key={metric.title}
+                      className="group relative overflow-hidden bg-white/60 backdrop-blur-sm border-white/20 hover:bg-white/80 transition-all duration-300"
+                  >
                     <div className={`absolute inset-0 bg-gradient-to-br ${metric.color} opacity-5 group-hover:opacity-10 transition-opacity`}></div>
                     <CardContent className="p-6 relative">
                       <div className="flex items-start justify-between">
@@ -228,7 +286,9 @@ const Dashboard = () => {
                           <p className="text-3xl font-bold text-slate-900">{metric.value}</p>
                           <p className="text-xs text-slate-500">{metric.description}</p>
                         </div>
-                        <div className={`p-3 rounded-xl bg-gradient-to-br ${metric.color} text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                        <div
+                            className={`p-3 rounded-xl bg-gradient-to-br ${metric.color} text-white shadow-lg group-hover:scale-110 transition-transform`}
+                        >
                           <Icon className="h-5 w-5" />
                         </div>
                       </div>
@@ -237,6 +297,7 @@ const Dashboard = () => {
               );
             })}
           </div>
+
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -263,26 +324,15 @@ const Dashboard = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
-                    <XAxis
-                        dataKey="date"
-                        stroke="#64748b"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                    />
-                    <YAxis
-                        stroke="#64748b"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                    />
+                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false}/>
+                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false}/>
                     <Tooltip
                         contentStyle={{
                           backgroundColor: 'rgba(255, 255, 255, 0.95)',
                           border: 'none',
                           borderRadius: '12px',
                           boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-                          backdropFilter: 'blur(10px)'
+                          backdropFilter: 'blur(10px)',
                         }}
                     />
                     <Area
@@ -316,89 +366,69 @@ const Dashboard = () => {
                           border: 'none',
                           borderRadius: '12px',
                           boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-                          backdropFilter: 'blur(10px)'
+                          backdropFilter: 'blur(10px)',
                         }}
                     />
-                    <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}/>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Activity & Quick Actions */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Recent Activity */}
-            <Card className="xl:col-span-2 bg-white/60 backdrop-blur-sm border-white/20">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-slate-800">Recent Activity</CardTitle>
-                    <CardDescription>Latest batch processing events</CardDescription>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <Bell className="h-4 w-4" />
-                  </Button>
+          {/* Recent Activity */}
+          <Card className="xl:col-span-2 bg-white/60 backdrop-blur-sm border-white/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-slate-800">Recent Activity</CardTitle>
+                  <CardDescription>Latest batch processing events</CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center space-x-4 p-3 rounded-lg bg-white/50 hover:bg-white/70 transition-colors cursor-pointer group">
-                      <div className={`p-2 rounded-lg ${
-                          activity.status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
-                              activity.status === 'processing' ? 'bg-blue-100 text-blue-600' :
-                                  'bg-red-100 text-red-600'
-                      }`}>
-                        {activity.status === 'completed' ? <CheckCircle className="h-4 w-4" /> :
-                            activity.status === 'processing' ? <Clock className="h-4 w-4" /> :
-                                <AlertTriangle className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {activity.title}
-                        </p>
-                        <p className="text-xs text-slate-500">{activity.description}</p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="outline" className="text-xs">
-                          {activity.status}
-                        </Badge>
-                        <p className="text-xs text-slate-500 mt-1">{activity.time}</p>
-                      </div>
+                <Button variant="ghost" size="sm">
+                  <Bell className="h-4 w-4"/>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {recentActivity.map((activity) => (
+                  <div
+                      key={activity.id}
+                      className="flex items-center space-x-4 p-3 rounded-lg bg-white/50 hover:bg-white/70 transition-colors cursor-pointer group"
+                      onClick={() => navigate(`/reconciliation/results/RB-${activity.id}`)}
+                  >
+                    <div
+                        className={`p-2 rounded-lg ${
+                            activity.status === 'completed'
+                                ? 'bg-emerald-100 text-emerald-600'
+                                : activity.status === 'processing'
+                                    ? 'bg-blue-100 text-blue-600'
+                                    : 'bg-red-100 text-red-600'
+                        }`}
+                    >
+                      {activity.status === 'completed' ? (
+                          <CheckCircle className="h-4 w-4"/>
+                      ) : activity.status === 'processing' ? (
+                          <Clock className="h-4 w-4"/>
+                      ) : (
+                          <AlertTriangle className="h-4 w-4"/>
+                      )}
                     </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            {/*<Card className="bg-white/60 backdrop-blur-sm border-white/20">*/}
-            {/*  <CardHeader>*/}
-            {/*    <CardTitle className="text-slate-800">Quick Actions</CardTitle>*/}
-            {/*    <CardDescription>Common operations</CardDescription>*/}
-            {/*  </CardHeader>*/}
-            {/*  <CardContent className="space-y-3">*/}
-            {/*    {[*/}
-            {/*      { icon: GitMerge, label: 'New Reconciliation', gradient: 'from-blue-500 to-indigo-500' },*/}
-            {/*      { icon: BarChart3, label: 'Analytics Report', gradient: 'from-emerald-500 to-teal-500' },*/}
-            {/*      { icon: Settings, label: 'System Settings', gradient: 'from-purple-500 to-indigo-500' },*/}
-            {/*      { icon: Shield, label: 'Audit Trail', gradient: 'from-amber-500 to-orange-500' },*/}
-            {/*    ].map((action) => (*/}
-            {/*        <Button*/}
-            {/*            key={action.label}*/}
-            {/*            variant="ghost"*/}
-            {/*            className="w-full justify-start h-12 bg-white/30 hover:bg-white/50 group"*/}
-            {/*        >*/}
-            {/*          <div className={`p-2 rounded-lg bg-gradient-to-r ${action.gradient} text-white mr-3 group-hover:scale-110 transition-transform`}>*/}
-            {/*            <action.icon className="h-4 w-4" />*/}
-            {/*          </div>*/}
-            {/*          <span className="font-medium text-slate-700 group-hover:text-slate-900">*/}
-            {/*        {action.label}*/}
-            {/*      </span>*/}
-            {/*        </Button>*/}
-            {/*    ))}*/}
-            {/*  </CardContent>*/}
-            {/*</Card>*/}
-          </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {activity.title}
+                      </p>
+                      <p className="text-xs text-slate-500">{activity.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="outline" className="text-xs">
+                        {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                      </Badge>
+                      <p className="text-xs text-slate-500 mt-1">{activity.time}</p>
+                    </div>
+                  </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
   );
